@@ -24,14 +24,15 @@ class Pago {
   factory Pago.fromJson(Map<String, dynamic> json) {
     final dynamic montoValue = json['monto'];
     final dynamic pagoValue = json['fechapago'];
-    final dynamic registroValue = json['fecharegistro'];
+    final dynamic registroValue = json['fecharegistro'] ?? json['registrado_at'];
     final Map<String, dynamic>? cuenta =
         json['cuentas_bancarias'] as Map<String, dynamic>?;
     return Pago(
       id: json['id'] as String,
       idpedido: json['idpedido'] as String,
-      monto:
-          montoValue is num ? montoValue.toDouble() : double.tryParse('$montoValue') ?? 0,
+      monto: montoValue is num
+          ? montoValue.toDouble()
+          : double.tryParse('$montoValue') ?? 0,
       fechapago: pagoValue is String
           ? DateTime.parse(pagoValue)
           : (pagoValue is DateTime ? pagoValue : DateTime.now()),
@@ -43,6 +44,16 @@ class Pago {
       idcuenta: json['idcuenta'] as String?,
       cuentaNombre: cuenta?['nombre'] as String?,
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      if (id.isNotEmpty) 'id': id,
+      'idpedido': idpedido,
+      'monto': monto,
+      'fechapago': fechapago.toIso8601String(),
+      'idcuenta': idcuenta,
+    };
   }
 
   Map<String, dynamic> toInsertJson() {
@@ -66,7 +77,7 @@ class Pago {
     final List<dynamic> data = await _supabase
         .from('pagos')
         .select(
-          'id,idpedido,monto,fechapago,fecharegistro,idcuenta,cuentas_bancarias(nombre)',
+          'id,idpedido,monto,fechapago,fecharegistro:registrado_at,idcuenta,cuentas_bancarias(nombre)',
         )
         .eq('idpedido', pedidoId)
         .order('fechapago', ascending: false);
@@ -89,9 +100,6 @@ class Pago {
   }
 
   static Future<void> update(Pago pago) async {
-    await _supabase
-        .from('pagos')
-        .update(pago.toUpdateJson())
-        .eq('id', pago.id);
+    await _supabase.from('pagos').update(pago.toUpdateJson()).eq('id', pago.id);
   }
 }

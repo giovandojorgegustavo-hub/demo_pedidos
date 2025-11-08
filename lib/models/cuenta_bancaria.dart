@@ -74,7 +74,6 @@ class CuentaBancaria {
   }) async {
     await _supabase
         .from('cuentas_bancarias')
-        .update(<String, dynamic>{'activa': activa})
-        .eq('id', id);
+        .update(<String, dynamic>{'activa': activa}).eq('id', id);
   }
 }

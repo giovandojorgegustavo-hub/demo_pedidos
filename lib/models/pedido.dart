@@ -9,9 +9,16 @@ class Pedido {
     required this.fechapedido,
     this.observacion,
     this.clienteNombre,
+    this.clienteNumero,
     this.estadoPago,
     this.estadoEntrega,
     this.estadoGeneral,
+    this.registradoAt,
+    this.editadoAt,
+    this.registradoPor,
+    this.editadoPor,
+    this.registradoPorNombre,
+    this.editadoPorNombre,
   });
 
   final String id;
@@ -19,13 +26,20 @@ class Pedido {
   final DateTime fechapedido;
   final String? observacion;
   final String? clienteNombre;
+  final String? clienteNumero;
   final String? estadoPago;
   final String? estadoEntrega;
   final String? estadoGeneral;
+  final DateTime? registradoAt;
+  final DateTime? editadoAt;
+  final String? registradoPor;
+  final String? editadoPor;
+  final String? registradoPorNombre;
+  final String? editadoPorNombre;
 
   factory Pedido.fromJson(Map<String, dynamic> json) {
     final dynamic fechaValue =
-        json['fechapedido'] ?? json['created_at'] ?? json['fecharegistro'];
+        json['fechapedido'] ?? json['registrado_at'] ?? json['created_at'];
     final Map<String, dynamic>? clienteJson =
         json['clientes'] as Map<String, dynamic>?;
     return Pedido(
@@ -35,12 +49,33 @@ class Pedido {
           ? DateTime.parse(fechaValue)
           : (fechaValue is DateTime ? fechaValue : DateTime.now()),
       observacion: json['observacion'] as String?,
-      clienteNombre:
-          json['cliente_nombre'] as String? ?? clienteJson?['nombre'] as String?,
+      clienteNombre: json['cliente_nombre'] as String? ??
+          clienteJson?['nombre'] as String?,
+      clienteNumero: json['cliente_numero'] as String? ??
+          clienteJson?['numero'] as String?,
       estadoPago: json['estado_pago'] as String?,
       estadoEntrega: json['estado_entrega'] as String?,
       estadoGeneral: json['estado_general'] as String?,
+      registradoAt: _parseDateNullable(json['registrado_at']),
+      editadoAt: _parseDateNullable(json['editado_at']),
+      registradoPor: json['registrado_por'] as String?,
+      editadoPor: json['editado_por'] as String?,
+      registradoPorNombre: json['registrado_por_nombre'] as String?,
+      editadoPorNombre: json['editado_por_nombre'] as String?,
     );
+  }
+
+  static DateTime? _parseDateNullable(dynamic value) {
+    if (value == null) {
+      return null;
+    }
+    if (value is DateTime) {
+      return value;
+    }
+    if (value is String) {
+      return DateTime.tryParse(value);
+    }
+    return null;
   }
 
   Pedido copyWith({
@@ -49,9 +84,16 @@ class Pedido {
     DateTime? fechapedido,
     String? observacion,
     String? clienteNombre,
+    String? clienteNumero,
     String? estadoPago,
     String? estadoEntrega,
     String? estadoGeneral,
+    DateTime? registradoAt,
+    DateTime? editadoAt,
+    String? registradoPor,
+    String? editadoPor,
+    String? registradoPorNombre,
+    String? editadoPorNombre,
   }) {
     return Pedido(
       id: id ?? this.id,
@@ -59,106 +101,67 @@ class Pedido {
       fechapedido: fechapedido ?? this.fechapedido,
       observacion: observacion ?? this.observacion,
       clienteNombre: clienteNombre ?? this.clienteNombre,
+      clienteNumero: clienteNumero ?? this.clienteNumero,
       estadoPago: estadoPago ?? this.estadoPago,
       estadoEntrega: estadoEntrega ?? this.estadoEntrega,
       estadoGeneral: estadoGeneral ?? this.estadoGeneral,
+      registradoAt: registradoAt ?? this.registradoAt,
+      editadoAt: editadoAt ?? this.editadoAt,
+      registradoPor: registradoPor ?? this.registradoPor,
+      editadoPor: editadoPor ?? this.editadoPor,
+      registradoPorNombre: registradoPorNombre ?? this.registradoPorNombre,
+      editadoPorNombre: editadoPorNombre ?? this.editadoPorNombre,
     );
   }
 
   Map<String, dynamic> toInsertJson() {
     return <String, dynamic>{
       'idcliente': idcliente,
-      'created_at': fechapedido.toIso8601String(),
+      'registrado_at':
+          (registradoAt ?? fechapedido).toIso8601String(),
       'observacion': observacion,
+      if (registradoPor != null) 'registrado_por': registradoPor,
     };
   }
 
   Map<String, dynamic> toUpdateJson() {
     return <String, dynamic>{
       'idcliente': idcliente,
-      'created_at': fechapedido.toIso8601String(),
+      'registrado_at': (registradoAt ?? fechapedido).toIso8601String(),
       'observacion': observacion,
-      'updated_at': DateTime.now().toIso8601String(),
+      if (registradoPor != null) 'registrado_por': registradoPor,
+      'editado_at': (editadoAt ?? DateTime.now()).toIso8601String(),
+      if (editadoPor != null) 'editado_por': editadoPor,
     };
   }
 
   static Future<List<Pedido>> getPedidos() async {
     final List<dynamic> data = await _supabase
-        .from('pedidos')
-        .select('id,idcliente,created_at,observacion,clientes!inner(nombre)')
-        .order('created_at', ascending: false);
-
-    final List<dynamic> estadosPagoRaw = await _supabase
-        .from('v_pedido_estado_pago')
-        .select('pedido_id,estado_pago');
-    final List<dynamic> estadosEntregaRaw = await _supabase
-        .from('v_pedido_estado_envio_global')
-        .select('pedido_id,estado_entrega');
-    final List<dynamic> estadosGeneralesRaw = await _supabase
-        .from('v_pedido_estado_general')
-        .select('pedido_id,estado_general');
-
-    final Map<String, String> estadoPagoMap = <String, String>{
-      for (final dynamic item in estadosPagoRaw)
-        (item as Map<String, dynamic>)['pedido_id'] as String:
-            (item)['estado_pago'] as String
-    };
-    final Map<String, String> estadoEntregaMap = <String, String>{
-      for (final dynamic item in estadosEntregaRaw)
-        (item as Map<String, dynamic>)['pedido_id'] as String:
-            (item)['estado_entrega'] as String
-    };
-    final Map<String, String> estadoGeneralMap = <String, String>{
-      for (final dynamic item in estadosGeneralesRaw)
-        (item as Map<String, dynamic>)['pedido_id'] as String:
-            (item)['estado_general'] as String
-    };
+        .from('v_pedido_vistageneral')
+        .select(
+          'id,fechapedido,observacion,idcliente,cliente_nombre,cliente_numero,estado_pago,estado_entrega,estado_general,registrado_at,editado_at,registrado_por,editado_por,registrado_por_nombre,editado_por_nombre',
+        )
+        .order('fechapedido', ascending: false);
 
     return data
-        .map((dynamic item) => Pedido.fromJson(item as Map<String, dynamic>))
         .map(
-          (Pedido pedido) => pedido.copyWith(
-            estadoPago: estadoPagoMap[pedido.id],
-            estadoEntrega: estadoEntregaMap[pedido.id],
-            estadoGeneral: estadoGeneralMap[pedido.id],
-          ),
+          (dynamic item) => Pedido.fromJson(item as Map<String, dynamic>),
         )
         .toList();
   }
 
   static Future<Pedido?> getById(String id) async {
     final Map<String, dynamic>? data = await _supabase
-        .from('pedidos')
+        .from('v_pedido_vistageneral')
         .select(
-            'id,idcliente,created_at,observacion,clientes!inner(nombre)')
+          'id,fechapedido,observacion,idcliente,cliente_nombre,cliente_numero,estado_pago,estado_entrega,estado_general,registrado_at,editado_at,registrado_por,editado_por,registrado_por_nombre,editado_por_nombre',
+        )
         .eq('id', id)
         .maybeSingle();
     if (data == null) {
       return null;
     }
-    final Pedido base = Pedido.fromJson(data);
-
-    final Map<String, dynamic>? estadoPago = await _supabase
-        .from('v_pedido_estado_pago')
-        .select('estado_pago')
-        .eq('pedido_id', id)
-        .maybeSingle();
-    final Map<String, dynamic>? estadoEntrega = await _supabase
-        .from('v_pedido_estado_envio_global')
-        .select('estado_entrega')
-        .eq('pedido_id', id)
-        .maybeSingle();
-    final Map<String, dynamic>? estadoGeneral = await _supabase
-        .from('v_pedido_estado_general')
-        .select('estado_general')
-        .eq('pedido_id', id)
-        .maybeSingle();
-
-    return base.copyWith(
-      estadoPago: estadoPago?['estado_pago'] as String?,
-      estadoEntrega: estadoEntrega?['estado_entrega'] as String?,
-      estadoGeneral: estadoGeneral?['estado_general'] as String?,
-    );
+    return Pedido.fromJson(data);
   }
 
   static Future<String> insert(Pedido pedido) async {

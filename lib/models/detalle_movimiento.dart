@@ -46,7 +46,7 @@ class DetalleMovimiento {
         .from('detallemovimientopedidos')
         .select('id,idmovimiento,idproducto,cantidad,productos(nombre)')
         .eq('idmovimiento', movimientoId)
-        .order('created_at');
+        .order('registrado_at');
     return data
         .map(
           (dynamic item) =>
@@ -67,16 +67,59 @@ class DetalleMovimiento {
     if (detalles.isEmpty) {
       return;
     }
-    final List<Map<String, dynamic>> payload = detalles
-        .map((DetalleMovimiento detalle) {
-          final Map<String, dynamic> json = detalle.toJson();
-          json
-            ..remove('id')
-            ..remove('idmovimiento');
-          json['idmovimiento'] = movimientoId;
-          return json;
-        })
-        .toList();
+    final List<Map<String, dynamic>> payload =
+        detalles.map((DetalleMovimiento detalle) {
+      final Map<String, dynamic> json = detalle.toJson();
+      json
+        ..remove('id')
+        ..remove('idmovimiento');
+      json['idmovimiento'] = movimientoId;
+      return json;
+    }).toList();
     await _supabase.from('detallemovimientopedidos').insert(payload);
+  }
+
+  static Future<DetalleMovimiento> insert(
+    String movimientoId,
+    DetalleMovimiento detalle,
+  ) async {
+    final Map<String, dynamic> payload = <String, dynamic>{
+      'idmovimiento': movimientoId,
+      'idproducto': detalle.idproducto,
+      'cantidad': detalle.cantidad,
+    };
+    final Map<String, dynamic> data = await _supabase
+        .from('detallemovimientopedidos')
+        .insert(payload)
+        .select(
+            'id,idmovimiento,idproducto,cantidad,productos(nombre)')
+        .single();
+    return DetalleMovimiento.fromJson(data);
+  }
+
+  static Future<DetalleMovimiento> update(DetalleMovimiento detalle) async {
+    final String? id = detalle.id;
+    if (id == null) {
+      throw ArgumentError('Se requiere el id para actualizar el detalle.');
+    }
+    final Map<String, dynamic> payload = <String, dynamic>{
+      'idproducto': detalle.idproducto,
+      'cantidad': detalle.cantidad,
+    };
+    final Map<String, dynamic> data = await _supabase
+        .from('detallemovimientopedidos')
+        .update(payload)
+        .eq('id', id)
+        .select(
+            'id,idmovimiento,idproducto,cantidad,productos(nombre)')
+        .single();
+    return DetalleMovimiento.fromJson(data);
+  }
+
+  static Future<void> delete(String id) async {
+    await _supabase
+        .from('detallemovimientopedidos')
+        .delete()
+        .eq('id', id);
   }
 }

@@ -12,7 +12,6 @@ class MovimientoEstado {
     this.idbase,
     this.asignadoAt,
     this.llegadaAt,
-    this.llegadaBy,
   });
 
   final String id;
@@ -23,7 +22,6 @@ class MovimientoEstado {
   final String? idbase;
   final DateTime? asignadoAt;
   final DateTime? llegadaAt;
-  final String? llegadaBy;
 
   factory MovimientoEstado.fromJson(Map<String, dynamic> json) {
     DateTime? parseDate(dynamic value) {
@@ -48,7 +46,6 @@ class MovimientoEstado {
       idbase: json['idbase'] as String?,
       asignadoAt: parseDate(json['asignado_at']),
       llegadaAt: parseDate(json['llegada_at']),
-      llegadaBy: json['llegada_by'] as String?,
     );
   }
 
@@ -56,7 +53,7 @@ class MovimientoEstado {
     final List<dynamic> data = await _supabase
         .from('v_movimiento_estado')
         .select(
-          'id,idpedido,idcliente,idbase,estado,estado_texto,asignado_at,llegada_at,llegada_by',
+          'id,idpedido,idcliente,idbase,estado,estado_texto,asignado_at,llegada_at',
         )
         .order('estado')
         .order('asignado_at', ascending: false);

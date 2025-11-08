@@ -19,7 +19,7 @@ class CargoCliente {
 
   factory CargoCliente.fromJson(Map<String, dynamic> json) {
     final dynamic montoValue = json['monto'];
-    final dynamic createdValue = json['created_at'];
+    final dynamic createdValue = json['created_at'] ?? json['registrado_at'];
     return CargoCliente(
       id: json['id'] as String,
       idpedido: json['idpedido'] as String,
@@ -49,6 +49,15 @@ class CargoCliente {
     );
   }
 
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      if (id.isNotEmpty) 'id': id,
+      'idpedido': idpedido,
+      'concepto': concepto,
+      'monto': monto,
+    };
+  }
+
   Map<String, dynamic> toInsertJson() {
     return <String, dynamic>{
       'idpedido': idpedido,
@@ -67,9 +76,9 @@ class CargoCliente {
   static Future<List<CargoCliente>> getByPedido(String pedidoId) async {
     final List<dynamic> data = await _supabase
         .from('cargos_cliente')
-        .select('id,idpedido,concepto,monto,created_at')
+        .select('id,idpedido,concepto,monto,created_at:registrado_at')
         .eq('idpedido', pedidoId)
-        .order('created_at', ascending: false);
+        .order('registrado_at', ascending: false);
     return data
         .map((dynamic item) =>
             CargoCliente.fromJson(item as Map<String, dynamic>))
