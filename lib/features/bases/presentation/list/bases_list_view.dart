@@ -1,44 +1,57 @@
-import 'package:demo_pedidos/models/producto.dart';
+import 'package:flutter/material.dart';
+
+import 'package:demo_pedidos/models/logistica_base.dart';
+import 'package:demo_pedidos/shared/app_sections.dart';
 import 'package:demo_pedidos/ui/page_scaffold.dart';
 import 'package:demo_pedidos/ui/standard_data_table.dart';
 import 'package:demo_pedidos/ui/table/table_section.dart';
-import 'package:flutter/material.dart';
-import 'package:demo_pedidos/shared/app_sections.dart';
 
-import '../form/productos_form_view.dart';
+import '../form/bases_form_view.dart';
 
-class ProductosListView extends StatefulWidget {
-  const ProductosListView({
+class BasesListView extends StatefulWidget {
+  const BasesListView({
     super.key,
-    this.currentSection = AppSection.productos,
+    this.currentSection = AppSection.bases,
   });
 
   final AppSection currentSection;
 
   @override
-  State<ProductosListView> createState() => _ProductosListViewState();
+  State<BasesListView> createState() => _BasesListViewState();
 }
 
-class _ProductosListViewState extends State<ProductosListView> {
-  late Future<List<Producto>> _future;
+class _BasesListViewState extends State<BasesListView> {
+  late Future<List<LogisticaBase>> _future;
 
   @override
   void initState() {
     super.initState();
-    _future = Producto.getProductos();
+    _future = LogisticaBase.getBases();
   }
 
   Future<void> _reload() async {
     setState(() {
-      _future = Producto.getProductos();
+      _future = LogisticaBase.getBases();
     });
     await _future;
+  }
+
+  Future<void> _openNuevaBase() async {
+    final String? result = await Navigator.push<String>(
+      context,
+      MaterialPageRoute<String>(
+        builder: (_) => const BasesFormView(),
+      ),
+    );
+    if (result != null) {
+      _reload();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return PageScaffold(
-      title: 'Productos',
+      title: 'Bases',
       currentSection: widget.currentSection,
       actions: <Widget>[
         IconButton(
@@ -46,11 +59,18 @@ class _ProductosListViewState extends State<ProductosListView> {
           icon: const Icon(Icons.refresh),
           tooltip: 'Actualizar',
         ),
+        IconButton(
+          onPressed: _openNuevaBase,
+          icon: const Icon(Icons.add_location_alt_outlined),
+          tooltip: 'Agregar base',
+        ),
       ],
-      body: FutureBuilder<List<Producto>>(
+      body: FutureBuilder<List<LogisticaBase>>(
         future: _future,
-        builder:
-            (BuildContext context, AsyncSnapshot<List<Producto>> snapshot) {
+        builder: (
+          BuildContext context,
+          AsyncSnapshot<List<LogisticaBase>> snapshot,
+        ) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -61,7 +81,7 @@ class _ProductosListViewState extends State<ProductosListView> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
-                    const Text('No se pudo cargar la lista de productos.'),
+                    const Text('No se pudo cargar la lista de bases.'),
                     const SizedBox(height: 8),
                     Text(
                       '${snapshot.error}',
@@ -79,8 +99,8 @@ class _ProductosListViewState extends State<ProductosListView> {
             );
           }
 
-          final List<Producto> productos = snapshot.data ?? <Producto>[];
-          if (productos.isEmpty) {
+          final List<LogisticaBase> bases = snapshot.data ?? <LogisticaBase>[];
+          if (bases.isEmpty) {
             return RefreshIndicator(
               onRefresh: _reload,
               child: ListView(
@@ -91,11 +111,11 @@ class _ProductosListViewState extends State<ProductosListView> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
-                        const Text('Aún no registras productos.'),
+                        const Text('Aún no registras bases.'),
                         const SizedBox(height: 12),
                         ElevatedButton(
-                          onPressed: _openNuevoProducto,
-                          child: const Text('Agregar producto'),
+                          onPressed: _openNuevaBase,
+                          child: const Text('Agregar base'),
                         ),
                       ],
                     ),
@@ -105,48 +125,25 @@ class _ProductosListViewState extends State<ProductosListView> {
             );
           }
 
-          return TableSection<Producto>(
-            items: productos,
-            columns: <TableColumnConfig<Producto>>[
-              TableColumnConfig<Producto>(
-                label: 'Producto',
-                sortAccessor: (Producto p) => p.nombre,
-                cellBuilder: _nombre,
-              ),
-              TableColumnConfig<Producto>(
-                label: 'Precio (S/)',
-                isNumeric: true,
-                sortAccessor: (Producto p) => p.precio,
-                cellBuilder: _precio,
+          return TableSection<LogisticaBase>(
+            items: bases,
+            onRefresh: _reload,
+            searchTextBuilder: (LogisticaBase base) => base.nombre,
+            searchPlaceholder: 'Buscar base',
+            columns: <TableColumnConfig<LogisticaBase>>[
+              TableColumnConfig<LogisticaBase>(
+                label: 'Nombre',
+                sortAccessor: (LogisticaBase base) => base.nombre,
+                cellBuilder: (LogisticaBase base) => Text(base.nombre),
               ),
             ],
-            onRefresh: _reload,
-            searchTextBuilder: (Producto p) => p.nombre,
-            searchPlaceholder: 'Buscar producto',
           );
         },
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _openNuevoProducto,
+        onPressed: _openNuevaBase,
         child: const Icon(Icons.add),
       ),
     );
   }
-
-  Future<void> _openNuevoProducto() async {
-    final String? result = await Navigator.push<String>(
-      context,
-      MaterialPageRoute<String>(
-        builder: (_) => const ProductosFormView(),
-      ),
-    );
-    if (result != null) {
-      _reload();
-    }
-  }
-
-  static Widget _nombre(Producto producto) => Text(producto.nombre);
-
-  static Widget _precio(Producto producto) =>
-      Text(producto.precio.toStringAsFixed(2));
 }

@@ -343,7 +343,6 @@ class _PedidosDetalleViewState extends State<PedidosDetalleView> {
           clienteId: pedido.idcliente,
           movimiento: item?.base,
           detalles: item?.detalles,
-          resumen: item?.resumen,
           pedidoSnapshots: snapshots,
         ),
       ),

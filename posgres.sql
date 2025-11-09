@@ -91,7 +91,9 @@ insert into security_resource_modules (relation_name, modulo) values
   ('cuentas_bancarias', 'finanzas'),
   ('pagos', 'finanzas'),
   ('gastos_operativos', 'finanzas'),
-  ('cargos_cliente', 'finanzas')
+  ('cargos_cliente', 'finanzas'),
+  ('compras_movimientos', 'operaciones'),
+  ('compras_movimiento_detalle', 'operaciones')
 on conflict (schema_name, relation_name) do nothing;
 
 create table if not exists perfiles (
@@ -301,9 +303,8 @@ $$;
 grant usage on schema public to authenticated, anon;
 grant select, insert, update, delete on all tables in schema public to authenticated;
 grant usage on all sequences in schema public to authenticated;
-
 -------------------------------------------------
--- 2. MÓDULO BASES / ENTIDADES MAESTRAS
+-- 2. MÓDULO 1 · BASES / ENTIDADES MAESTRAS
 -------------------------------------------------
 
 -- ============================================
@@ -636,6 +637,189 @@ create table if not exists cargos_cliente (
 );
 
 
+-------------------------------------------------
+-- 6. MÓDULO 2 · OPERACIONES (Compras / Ajustes / Transferencias / Fabricación)
+-------------------------------------------------
+
+-- ============================================
+-- 6.1 PROVEEDORES
+-- ============================================
+create table if not exists proveedores (
+  id uuid primary key default gen_random_uuid(),
+  nombre  text not null,
+  numero  text not null unique,
+  registrado_at timestamptz default now(),
+  editado_at     timestamptz,
+  registrado_por uuid references auth.users(id),
+  editado_por    uuid references auth.users(id)
+);
+
+-- ============================================
+-- 6.2 COMPRAS
+-- ============================================
+create table if not exists compras (
+  id uuid primary key default gen_random_uuid(),
+  idproveedor uuid not null references proveedores(id),
+  observacion text,
+  registrado_at timestamptz default now(),
+  editado_at     timestamptz,
+  registrado_por uuid references auth.users(id),
+  editado_por    uuid references auth.users(id)
+);
+
+create table if not exists compras_detalle (
+  id uuid primary key default gen_random_uuid(),
+  idcompra   uuid not null references compras(id) on delete cascade,
+  idproducto uuid not null references productos(id),
+  cantidad     numeric(12,4) not null check (cantidad > 0),
+  costo_total  numeric(14,6) not null check (costo_total >= 0),
+  registrado_at timestamptz default now(),
+  editado_at     timestamptz,
+  registrado_por uuid references auth.users(id),
+  editado_por    uuid references auth.users(id),
+  unique (idcompra, idproducto)
+);
+
+create table if not exists compras_pagos (
+  id uuid primary key default gen_random_uuid(),
+  idcompra uuid not null references compras(id) on delete cascade,
+  idcuenta uuid references cuentas_bancarias(id),
+  monto numeric(12,2) not null check (monto >= 0),
+  registrado_at timestamptz default now(),
+  editado_at     timestamptz,
+  registrado_por uuid references auth.users(id),
+  editado_por    uuid references auth.users(id)
+);
+
+create table if not exists compras_gastos (
+  id uuid primary key default gen_random_uuid(),
+  idcompra uuid not null references compras(id) on delete cascade,
+  cuenta_contable text,
+  idcuenta uuid references cuentas_bancarias(id),
+  monto numeric(12,2) not null check (monto >= 0),
+  observacion text,
+  registrado_at timestamptz default now(),
+  editado_at     timestamptz,
+  registrado_por uuid references auth.users(id),
+  editado_por    uuid references auth.users(id)
+);
+
+-- ============================================
+-- 6.2.1 COMPRAS · MOVIMIENTOS DE INGRESO
+-- ============================================
+create table if not exists compras_movimientos (
+  id uuid primary key default gen_random_uuid(),
+  idcompra uuid not null references compras(id) on delete cascade,
+  idbase uuid not null references bases(id),
+  observacion text,
+  registrado_at timestamptz default now(),
+  editado_at     timestamptz,
+  registrado_por uuid references auth.users(id),
+  editado_por    uuid references auth.users(id)
+);
+
+create table if not exists compras_movimiento_detalle (
+  id uuid primary key default gen_random_uuid(),
+  idmovimiento uuid not null references compras_movimientos(id) on delete cascade,
+  idproducto uuid not null references productos(id),
+  cantidad numeric(12,4) not null check (cantidad > 0),
+  registrado_at timestamptz default now(),
+  editado_at     timestamptz,
+  registrado_por uuid references auth.users(id),
+  editado_por    uuid references auth.users(id),
+  unique (idmovimiento, idproducto)
+);
+
+-- ============================================
+-- 6.3 AJUSTES
+-- ============================================
+create table if not exists ajustes (
+  id uuid primary key default gen_random_uuid(),
+  idbase uuid not null references bases(id),
+  observacion text,
+  registrado_at timestamptz default now(),
+  editado_at     timestamptz,
+  registrado_por uuid references auth.users(id),
+  editado_por    uuid references auth.users(id)
+);
+
+create table if not exists ajustes_detalle (
+  id uuid primary key default gen_random_uuid(),
+  idajuste   uuid not null references ajustes(id) on delete cascade,
+  idproducto uuid not null references productos(id),
+  cantidad   numeric(12,4) not null check (cantidad <> 0),
+  registrado_at timestamptz default now(),
+  editado_at     timestamptz,
+  registrado_por uuid references auth.users(id),
+  editado_por    uuid references auth.users(id),
+  unique (idajuste, idproducto)
+);
+
+-- ============================================
+-- 6.4 TRANSFERENCIAS ENTRE BASES
+-- ============================================
+create table if not exists transferencias (
+  id uuid primary key default gen_random_uuid(),
+  idbase_origen  uuid not null references bases(id),
+  idbase_destino uuid not null references bases(id),
+  observacion text,
+  registrado_at timestamptz default now(),
+  editado_at     timestamptz,
+  registrado_por uuid references auth.users(id),
+  editado_por    uuid references auth.users(id),
+  check (idbase_origen <> idbase_destino)
+);
+
+create table if not exists transferencias_detalle (
+  id uuid primary key default gen_random_uuid(),
+  idtransferencia uuid not null references transferencias(id) on delete cascade,
+  idproducto      uuid not null references productos(id),
+  cantidad numeric(12,4) not null check (cantidad > 0),
+  registrado_at timestamptz default now(),
+  editado_at     timestamptz,
+  registrado_por uuid references auth.users(id),
+  editado_por    uuid references auth.users(id),
+  unique (idtransferencia, idproducto)
+);
+
+-- ============================================
+-- 6.5 FABRICACIONES
+-- ============================================
+create table if not exists fabricaciones (
+  id uuid primary key default gen_random_uuid(),
+  idbase uuid not null references bases(id),
+  observacion text,
+  registrado_at timestamptz default now(),
+  editado_at     timestamptz,
+  registrado_por uuid references auth.users(id),
+  editado_por    uuid references auth.users(id)
+);
+
+create table if not exists fabricacion_det_consumido (
+  id uuid primary key default gen_random_uuid(),
+  idfabricacion uuid not null references fabricaciones(id) on delete cascade,
+  idproducto    uuid not null references productos(id),
+  cantidad numeric(12,4) not null check (cantidad > 0),
+  registrado_at timestamptz default now(),
+  editado_at     timestamptz,
+  registrado_por uuid references auth.users(id),
+  editado_por    uuid references auth.users(id),
+  unique (idfabricacion, idproducto)
+);
+
+create table if not exists fabricacion_det_fabricado (
+  id uuid primary key default gen_random_uuid(),
+  idfabricacion uuid not null references fabricaciones(id) on delete cascade,
+  idproducto    uuid not null references productos(id),
+  cantidad numeric(12,4) not null check (cantidad > 0),
+  registrado_at timestamptz default now(),
+  editado_at     timestamptz,
+  registrado_por uuid references auth.users(id),
+  editado_por    uuid references auth.users(id),
+  unique (idfabricacion, idproducto)
+);
+
+
 
 
 
@@ -724,10 +908,14 @@ execute function detallepedidos_calcular_total();
 -------------------------------------------------
 
 -------------------------------------------------
--- 6. MÓDULO REPORTES / CAPA DE CONSULTA
+-- 7. MÓDULO REPORTES / CAPA DE CONSULTA
 -------------------------------------------------
 
--- 6.1 Pedidos · Totales y estados básicos
+-------------------------------------------------
+-- VISTAS · MÓDULO 1 (Pedidos / Finanzas)
+-------------------------------------------------
+
+-- 7.1 Pedidos · Totales y estados básicos
 -------------------------------------------------
 
 create or replace view public.v_pedidoestadopago_detallepedido as
@@ -811,7 +999,7 @@ left join public.v_pedidosestadopago_cargo            cp on cp.pedido_id = p.id
 left join public.v_pedidoestadopago_provincia         rp on rp.pedido_id = p.id
 left join public.v_pedidoestadopago_pagados           pg on pg.pedido_id = p.id;
 
--- 6.2 Pedidos · Seguimiento de envíos (unificado)
+-- 7.2 Pedidos · Seguimiento de envíos (unificado)
 -------------------------------------------------
 create or replace view public.v_pedidoestadoentrega as
 with detalle_solicitado as (
@@ -859,7 +1047,7 @@ group by ep.pedido_id;
 
 
 
--- 6.3 Movimientos/Viajes · Estados operativos
+-- 7.3 Movimientos/Viajes · Estados operativos
 -------------------------------------------------
 -- Movimientos en borrador (sin base)
 create or replace view public.v_mov_borrador as
@@ -923,7 +1111,7 @@ left join public.v_mov_asignados  a on a.id = m.id
 left join public.v_mov_llegados   l on l.id = m.id
 left join public.v_mov_timestamps t on t.id = m.id;
 
--- 6.4 Pedidos · Estado general combinado
+-- 7.4 Pedidos · Estado general combinado
 -------------------------------------------------
 create or replace view public.v_pedido_estado_general as
 select  p.id                                    as pedido_id,
@@ -940,7 +1128,7 @@ from public.pedidos p
 left join public.v_pedidoestadopago          ep on ep.pedido_id = p.id
 left join public.v_pedidoestadoentrega       ee on ee.pedido_id = p.id;
 
--- 6.5 Pedidos · Vista general para UI
+-- 7.5 Pedidos · Vista general para UI
 -------------------------------------------------
 create or replace view public.v_pedido_vistageneral (
   id,
@@ -990,7 +1178,7 @@ left join public.perfiles                   pe on pe.user_id = p.editado_por
 left join public.v_pedidoestadopago         ep on ep.pedido_id = p.id
 left join public.v_pedidoestadoentrega      ee on ee.pedido_id = p.id;
 
--- 6.6 Movimientos · Resumen enriquecido
+-- 7.6 Movimientos · Resumen enriquecido
 -------------------------------------------------
 create or replace view public.v_movimiento_resumen as
 select
@@ -1043,7 +1231,7 @@ left join public.v_mov_asignados      a   on a.id = m.id
 left join public.v_mov_llegados       l   on l.id = m.id
 left join public.v_mov_timestamps     t   on t.id = m.id;
 
--- 6.7 Movimientos · Vista general para UI
+-- 7.7 Movimientos · Vista general para UI
 -------------------------------------------------
 create or replace view public.v_movimiento_vistageneral as
 select
@@ -1096,7 +1284,7 @@ left join public.direccion_provincia  dp  on dp.id = mdp.iddir_provincia
 left join public.v_mov_asignados      a   on a.id = m.id
 left join public.v_mov_llegados       l   on l.id = m.id;
 
--- 6.8 Viajes · Vista general
+-- 7.8 Viajes · Vista general
 -------------------------------------------------
 create or replace view public.v_viaje_vistageneral as
 with stats as (
@@ -1134,7 +1322,7 @@ select
 from public.viajes v
 left join stats s on s.idviaje = v.id;
 
--- 6.9 Viajes · Detalle general
+-- 7.9 Viajes · Detalle general
 -------------------------------------------------
 create or replace view public.v_viaje_detalle_vistageneral as
 select
@@ -1172,3 +1360,217 @@ left join public.direccion            d   on d.id = mdl.iddireccion
 left join public.numrecibe            nr  on nr.id = mdl.idnumrecibe
 left join public.mov_destino_provincia mdp on mdp.idmovimiento = m.id
 left join public.direccion_provincia  dp  on dp.id = mdp.iddir_provincia;
+
+-------------------------------------------------
+-- VISTAS · MÓDULO 2 (Operaciones / Inventario)
+-------------------------------------------------
+
+create or replace view public.v_kardex_operativo as
+with movimientos as (
+  select
+    dmp.idproducto,
+    (-dmp.cantidad)::numeric(14,4) as cantidad,
+    mp.idbase,
+    'movimiento'::text as tipomov,
+    mp.id as idoperativo,
+    mp.fecharegistro as registrado_at
+  from public.movimientopedidos mp
+  join public.detallemovimientopedidos dmp on dmp.idmovimiento = mp.id
+  union all
+  select
+    cmd.idproducto,
+    cmd.cantidad::numeric(14,4),
+    cm.idbase,
+    'compra'::text as tipomov,
+    cm.id as idoperativo,
+    cm.registrado_at as registrado_at
+  from public.compras_movimientos cm
+  join public.compras_movimiento_detalle cmd on cmd.idmovimiento = cm.id
+  union all
+  select
+    ad.idproducto,
+    ad.cantidad::numeric(14,4),
+    a.idbase,
+    'ajuste'::text as tipomov,
+    a.id as idoperativo,
+    a.registrado_at as registrado_at
+  from public.ajustes a
+  join public.ajustes_detalle ad on ad.idajuste = a.id
+  union all
+  select
+    td.idproducto,
+    (-td.cantidad)::numeric(14,4),
+    t.idbase_origen,
+    'trans_origen'::text as tipomov,
+    t.id as idoperativo,
+    t.registrado_at as registrado_at
+  from public.transferencias t
+  join public.transferencias_detalle td on td.idtransferencia = t.id
+  union all
+  select
+    td.idproducto,
+    td.cantidad::numeric(14,4),
+    t.idbase_destino,
+    'trans_destino'::text as tipomov,
+    t.id as idoperativo,
+    t.registrado_at as registrado_at
+  from public.transferencias t
+  join public.transferencias_detalle td on td.idtransferencia = t.id
+  union all
+  select
+    fdc.idproducto,
+    (-fdc.cantidad)::numeric(14,4),
+    f.idbase,
+    'fabr_consumo'::text as tipomov,
+    f.id as idoperativo,
+    f.registrado_at as registrado_at
+  from public.fabricaciones f
+  join public.fabricacion_det_consumido fdc on fdc.idfabricacion = f.id
+  union all
+  select
+    fdf.idproducto,
+    fdf.cantidad::numeric(14,4),
+    f.idbase,
+    'fabr_fabricado'::text as tipomov,
+    f.id as idoperativo,
+    f.registrado_at as registrado_at
+  from public.fabricaciones f
+  join public.fabricacion_det_fabricado fdf on fdf.idfabricacion = f.id
+)
+select
+  m.idproducto,
+  p.nombre as producto_nombre,
+  m.cantidad,
+  m.idbase,
+  b.nombre as base_nombre,
+  m.tipomov,
+  m.idoperativo,
+  m.registrado_at
+from movimientos m
+left join public.productos p on p.id = m.idproducto
+left join public.bases b on b.id = m.idbase;
+
+create or replace view public.v_stock_por_base as
+select
+  m.idbase,
+  b.nombre as base_nombre,
+  m.idproducto,
+  p.nombre as producto_nombre,
+  sum(m.cantidad)::numeric(14,4) as cantidad
+from public.v_kardex_operativo m
+left join public.productos p on p.id = m.idproducto
+left join public.bases b on b.id = m.idbase
+group by m.idbase, b.nombre, m.idproducto, p.nombre;
+
+-------------------------------------------------
+-- 7.10 Compras · Vistas operativas
+-------------------------------------------------
+
+create or replace view public.v_compras_total_detalle as
+select
+  c.id as compra_id,
+  coalesce(sum(cd.costo_total), 0)::numeric(14,2) as total_detalle
+from public.compras c
+left join public.compras_detalle cd on cd.idcompra = c.id
+group by c.id;
+
+create or replace view public.v_compras_total_pagado as
+select
+  c.id as compra_id,
+  coalesce(sum(cp.monto), 0)::numeric(14,2) as total_pagado
+from public.compras c
+left join public.compras_pagos cp on cp.idcompra = c.id
+group by c.id;
+
+create or replace view public.v_compras_estado_pago as
+select
+  c.id as compra_id,
+  d.total_detalle,
+  p.total_pagado,
+  (coalesce(d.total_detalle,0) - coalesce(p.total_pagado,0))::numeric(14,2) as saldo,
+  case
+    when coalesce(p.total_pagado,0) = 0 then 'pendiente'
+    when coalesce(d.total_detalle,0) - coalesce(p.total_pagado,0) = 0 then 'cancelada'
+    when coalesce(d.total_detalle,0) - coalesce(p.total_pagado,0) < 0 then 'pagado_demas'
+    else 'parcial'
+  end as estado_pago
+from public.compras c
+left join public.v_compras_total_detalle d on d.compra_id = c.id
+left join public.v_compras_total_pagado  p on p.compra_id = c.id;
+
+create or replace view public.v_compras_total_enviada as
+with detalle as (
+  select
+    c.id as compra_id,
+    coalesce(sum(cd.cantidad),0)::numeric(14,4) as cantidad_detalle
+  from public.compras c
+  left join public.compras_detalle cd on cd.idcompra = c.id
+  group by c.id
+),
+movimientos as (
+  select
+    cm.idcompra as compra_id,
+    coalesce(sum(cmd.cantidad),0)::numeric(14,4) as cantidad_enviada
+  from public.compras_movimientos cm
+  join public.compras_movimiento_detalle cmd on cmd.idmovimiento = cm.id
+  group by cm.idcompra
+)
+select
+  d.compra_id,
+  d.cantidad_detalle,
+  coalesce(m.cantidad_enviada, 0)::numeric(14,4) as cantidad_enviada
+from detalle d
+left join movimientos m on m.compra_id = d.compra_id;
+
+create or replace view public.v_compras_estado_entrega as
+select
+  c.id as compra_id,
+  coalesce(env.cantidad_detalle,0)::numeric(14,4) as cantidad_detalle,
+  coalesce(env.cantidad_enviada,0)::numeric(14,4) as cantidad_enviada,
+  case
+    when coalesce(env.cantidad_detalle,0) = 0 then 'sin_productos'
+    when coalesce(env.cantidad_enviada,0) = 0 then 'pendiente'
+    when coalesce(env.cantidad_enviada,0) >= coalesce(env.cantidad_detalle,0) then 'completo'
+    else 'parcial'
+  end as estado_entrega
+from public.compras c
+left join public.v_compras_total_enviada env on env.compra_id = c.id;
+
+create or replace view public.v_compras_vistageneral as
+select
+  c.id,
+  c.idproveedor,
+  prov.nombre as proveedor_nombre,
+  prov.numero as proveedor_numero,
+  baseinfo.idbase,
+  baseinfo.base_nombre,
+  c.observacion,
+  c.registrado_at,
+  c.editado_at,
+  c.registrado_por,
+  c.editado_por,
+  ep.total_detalle,
+  ep.total_pagado,
+  ep.saldo,
+  ep.estado_pago,
+  ee.cantidad_detalle as cantidad_total,
+  ee.cantidad_enviada,
+  ee.estado_entrega
+from public.compras c
+left join public.proveedores prov on prov.id = c.idproveedor
+left join lateral (
+  select
+    min(cm_dist.idbase::text)::uuid as idbase,
+    string_agg(
+      b.nombre,
+      ', ' order by b.nombre
+    ) filter (where b.nombre is not null) as base_nombre
+  from (
+    select distinct cm.idbase
+    from public.compras_movimientos cm
+    where cm.idcompra = c.id
+  ) cm_dist
+  left join public.bases b on b.id = cm_dist.idbase
+) baseinfo on true
+left join public.v_compras_estado_pago ep on ep.compra_id = c.id
+left join public.v_compras_estado_entrega ee on ee.compra_id = c.id;

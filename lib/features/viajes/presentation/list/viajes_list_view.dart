@@ -209,7 +209,7 @@ class _ViajesListViewState extends State<ViajesListView> {
     final Color color = terminado ? Colors.green : Colors.orange;
     return Chip(
       label: Text(terminado ? 'Llegado' : 'Pendiente'),
-      backgroundColor: color.withOpacity(0.12),
+      backgroundColor: color.withValues(alpha: 0.12),
       labelStyle: TextStyle(color: color),
       visualDensity: VisualDensity.compact,
     );

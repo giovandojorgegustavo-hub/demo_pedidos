@@ -352,7 +352,7 @@ class _MovimientosListViewState extends State<MovimientosListView> {
     final Color color = _estadoColor(movimiento.estadoCodigo);
     return Chip(
       label: Text(_estadoLabel(movimiento.estadoTexto)),
-      backgroundColor: color.withOpacity(0.12),
+      backgroundColor: color.withValues(alpha: 0.12),
       labelStyle: TextStyle(color: color),
       visualDensity: VisualDensity.compact,
     );

@@ -1,0 +1,111 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+final SupabaseClient _supabase = Supabase.instance.client;
+
+double _toDouble(dynamic value) {
+  if (value == null) {
+    return 0;
+  }
+  if (value is num) {
+    return value.toDouble();
+  }
+  if (value is String) {
+    return double.tryParse(value) ?? 0;
+  }
+  return 0;
+}
+
+DateTime? _parseDate(dynamic value) {
+  if (value == null) {
+    return null;
+  }
+  if (value is DateTime) {
+    return value;
+  }
+  if (value is String) {
+    return DateTime.tryParse(value);
+  }
+  return null;
+}
+
+class CompraPago {
+  const CompraPago({
+    required this.id,
+    required this.idcompra,
+    this.idcuenta,
+    required this.monto,
+    this.cuentaNombre,
+    this.registradoAt,
+    this.editadoAt,
+  });
+
+  final String id;
+  final String idcompra;
+  final String? idcuenta;
+  final double monto;
+  final String? cuentaNombre;
+  final DateTime? registradoAt;
+  final DateTime? editadoAt;
+
+  factory CompraPago.fromJson(Map<String, dynamic> json) {
+    final Map<String, dynamic>? cuenta =
+        json['cuentas_bancarias'] as Map<String, dynamic>?;
+    return CompraPago(
+      id: json['id'] as String,
+      idcompra: json['idcompra'] as String,
+      idcuenta: json['idcuenta'] as String?,
+      monto: _toDouble(json['monto']),
+      cuentaNombre: json['cuenta_nombre'] as String? ??
+          cuenta?['nombre'] as String?,
+      registradoAt: _parseDate(json['registrado_at']),
+      editadoAt: _parseDate(json['editado_at']),
+    );
+  }
+
+  Map<String, dynamic> toInsertJson() {
+    return <String, dynamic>{
+      'idcompra': idcompra,
+      'idcuenta': idcuenta,
+      'monto': monto,
+    };
+  }
+
+  Map<String, dynamic> toUpdateJson() {
+    return <String, dynamic>{
+      'idcuenta': idcuenta,
+      'monto': monto,
+      'editado_at': DateTime.now().toIso8601String(),
+    };
+  }
+
+  static Future<List<CompraPago>> fetchByCompra(String compraId) async {
+    final List<dynamic> rows = await _supabase
+        .from('compras_pagos')
+        .select('id,idcompra,idcuenta,monto,registrado_at,editado_at,cuentas_bancarias(nombre)')
+        .eq('idcompra', compraId)
+        .order('registrado_at', ascending: false);
+    return rows
+        .map((dynamic row) => CompraPago.fromJson(row as Map<String, dynamic>))
+        .toList(growable: false);
+  }
+
+  static Future<String> insert(CompraPago pago) async {
+    final Map<String, dynamic> inserted = await _supabase
+        .from('compras_pagos')
+        .insert(pago.toInsertJson())
+        .select('id')
+        .single();
+    return inserted['id'] as String;
+  }
+
+  static Future<void> update(CompraPago pago) async {
+    await _supabase
+        .from('compras_pagos')
+        .update(pago.toUpdateJson())
+        .eq('id', pago.id);
+  }
+
+  static Future<void> deleteById(String id) async {
+    await _supabase.from('compras_pagos').delete().eq('id', id);
+  }
+}

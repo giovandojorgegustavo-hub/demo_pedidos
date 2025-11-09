@@ -116,7 +116,6 @@ class _MovimientoDetalleViewState extends State<MovimientoDetalleView> {
     if (movimiento == null) {
       return;
     }
-    final MovimientoResumen? resumen = _resumen;
     final bool? changed = await Navigator.push<bool>(
       context,
       MaterialPageRoute<bool>(
@@ -124,7 +123,6 @@ class _MovimientoDetalleViewState extends State<MovimientoDetalleView> {
           pedidoId: movimiento.idpedido,
           movimiento: movimiento,
           detalles: _detalles,
-          resumen: resumen,
         ),
       ),
     );

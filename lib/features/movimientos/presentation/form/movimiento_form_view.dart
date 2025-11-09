@@ -6,7 +6,6 @@ import 'package:demo_pedidos/features/movimientos/presentation/shared/detalle_mo
 import 'package:demo_pedidos/models/detalle_movimiento.dart';
 import 'package:demo_pedidos/models/logistica_base.dart';
 import 'package:demo_pedidos/models/movimiento_pedido.dart';
-import 'package:demo_pedidos/models/movimiento_resumen.dart';
 import 'package:demo_pedidos/models/pedido.dart';
 import 'package:demo_pedidos/models/producto.dart';
 import 'package:demo_pedidos/models/pedido_detalle_snapshot.dart';
@@ -21,7 +20,6 @@ class MovimientoFormView extends StatefulWidget {
     this.clienteId,
     this.movimiento,
     this.detalles,
-    this.resumen,
     this.pedidoSnapshots,
     this.pedidoDraftMovimientoConsumos,
   });
@@ -30,7 +28,6 @@ class MovimientoFormView extends StatefulWidget {
   final String? clienteId;
   final MovimientoPedido? movimiento;
   final List<DetalleMovimiento>? detalles;
-  final MovimientoResumen? resumen;
   final List<PedidoDetalleSnapshot>? pedidoSnapshots;
   final Map<String, double>? pedidoDraftMovimientoConsumos;
 
@@ -51,7 +48,6 @@ class _MovimientoFormViewState extends State<MovimientoFormView> {
   bool _isLoadingProductos = true;
   bool _isSaving = false;
   String? _selectedBaseId;
-  MovimientoResumen? _resumen;
   bool _esProvincia = false;
   DateTime _fecha = DateTime.now();
   TimeOfDay _hora = TimeOfDay.now();
@@ -107,10 +103,6 @@ class _MovimientoFormViewState extends State<MovimientoFormView> {
     } else {
       _fetchClienteId();
     }
-    _resumen = widget.resumen;
-    if (_isEditing && _movimientoId != null) {
-      _loadResumen();
-    }
   }
 
   @override
@@ -126,21 +118,6 @@ class _MovimientoFormViewState extends State<MovimientoFormView> {
       ),
       _loadProductos(),
     ]);
-  }
-
-  Future<void> _loadResumen() async {
-    final String? movimientoId = _movimientoId;
-    if (!_isEditing || movimientoId == null) {
-      return;
-    }
-    final MovimientoResumen? resumen =
-        await MovimientoResumen.fetchById(movimientoId);
-    if (!mounted || resumen == null) {
-      return;
-    }
-    setState(() {
-      _resumen = resumen;
-    });
   }
 
   Future<void> _loadProductosPedido() async {
@@ -418,42 +395,6 @@ class _MovimientoFormViewState extends State<MovimientoFormView> {
           ),
         )
         .toList(growable: false);
-  }
-
-  _ClienteDireccion? _findDireccionById(String? id) {
-    if (id == null) {
-      return null;
-    }
-    for (final _ClienteDireccion direccion in _clienteDirecciones) {
-      if (direccion.id == id) {
-        return direccion;
-      }
-    }
-    return null;
-  }
-
-  _ClienteContacto? _findContactoById(String? id) {
-    if (id == null) {
-      return null;
-    }
-    for (final _ClienteContacto contacto in _clienteContactos) {
-      if (contacto.id == id) {
-        return contacto;
-      }
-    }
-    return null;
-  }
-
-  _ClienteDireccionProvincia? _findProvinciaById(String? id) {
-    if (id == null) {
-      return null;
-    }
-    for (final _ClienteDireccionProvincia dir in _clienteDireccionesProvincia) {
-      if (dir.id == id) {
-        return dir;
-      }
-    }
-    return null;
   }
 
   Future<void> _loadDestinoActual() async {
@@ -1072,7 +1013,7 @@ class _MovimientoFormViewState extends State<MovimientoFormView> {
               const Center(child: CircularProgressIndicator())
             else
               DropdownButtonFormField<String>(
-                value: _selectedBaseId,
+                initialValue: _selectedBaseId,
                 decoration: const InputDecoration(
                   labelText: 'Base logística',
                   border: OutlineInputBorder(),
@@ -1267,7 +1208,7 @@ class _MovimientoFormViewState extends State<MovimientoFormView> {
     }
     children.add(
       DropdownButtonFormField<String?>(
-        value: _selectedDireccionId,
+        initialValue: _selectedDireccionId,
         decoration: const InputDecoration(
           labelText: 'Dirección de entrega',
           border: OutlineInputBorder(),
@@ -1313,7 +1254,7 @@ class _MovimientoFormViewState extends State<MovimientoFormView> {
     children.add(const SizedBox(height: 16));
     children.add(
       DropdownButtonFormField<String?>(
-        value: _selectedContactoId,
+        initialValue: _selectedContactoId,
         decoration: const InputDecoration(
           labelText: 'Número de contacto',
           border: OutlineInputBorder(),
@@ -1370,7 +1311,7 @@ class _MovimientoFormViewState extends State<MovimientoFormView> {
     }
     children.add(
       DropdownButtonFormField<String?>(
-        value: _selectedProvinciaDireccionId,
+        initialValue: _selectedProvinciaDireccionId,
         decoration: const InputDecoration(
           labelText: 'Destino (provincia)',
           border: OutlineInputBorder(),

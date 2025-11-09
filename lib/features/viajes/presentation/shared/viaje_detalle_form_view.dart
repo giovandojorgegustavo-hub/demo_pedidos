@@ -118,7 +118,7 @@ class _ViajeDetalleFormViewState extends State<ViajeDetalleFormView> {
             if (_isLoading)
               const LinearProgressIndicator(minHeight: 2),
             DropdownButtonFormField<String>(
-              value: _selectedMovimientoId,
+              initialValue: _selectedMovimientoId,
               items: _movimientos
                   .map(
                     (MovimientoResumen mov) => DropdownMenuItem<String>(

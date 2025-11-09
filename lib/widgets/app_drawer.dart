@@ -2,14 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:demo_pedidos/features/administracion/presentation/list/perfiles_list_view.dart';
+import 'package:demo_pedidos/features/bases/presentation/list/bases_list_view.dart';
 import 'package:demo_pedidos/features/cuentas/presentation/list/cuentas_list_view.dart';
 import 'package:demo_pedidos/features/clientes/presentation/list/clientes_list_view.dart';
+import 'package:demo_pedidos/features/compras/presentation/list/compras_list_view.dart';
 import 'package:demo_pedidos/features/home/presentation/modules_dashboard_view.dart';
 import 'package:demo_pedidos/features/movimientos/presentation/list/movimientos_list_view.dart';
+import 'package:demo_pedidos/features/proveedores/presentation/list/proveedores_list_view.dart';
 import 'package:demo_pedidos/features/pedidos/presentation/list/pedidos_list_view.dart';
 import 'package:demo_pedidos/features/productos/presentation/list/productos_list_view.dart';
 import 'package:demo_pedidos/features/viajes/presentation/list/viaje_detalles_list_view.dart';
 import 'package:demo_pedidos/features/viajes/presentation/list/viajes_list_view.dart';
+import 'package:demo_pedidos/features/operaciones/presentation/operaciones_dashboard_view.dart';
+import 'package:demo_pedidos/features/operaciones/presentation/operaciones_placeholder_view.dart';
 import 'package:demo_pedidos/services/module_access_service.dart';
 import 'package:demo_pedidos/shared/app_sections.dart';
 import 'package:demo_pedidos/shared/module_definitions.dart';
@@ -30,22 +35,43 @@ class AppDrawer extends StatelessWidget {
 
     Widget builder() {
       switch (target) {
+        case AppSection.pedidos:
+          return const PedidosListView();
         case AppSection.movimientos:
           return const MovimientosListView();
         case AppSection.viajes:
           return const ViajesListView();
         case AppSection.viajesDetalle:
           return const ViajeDetallesListView();
+        case AppSection.operacionesStock:
+        case AppSection.operacionesHistorial:
+          return OperacionesDashboardView(initialSection: target);
+        case AppSection.operacionesCompras:
+          return const ComprasListView();
+        case AppSection.operacionesTransferencias:
+          return const OperacionesTransferenciasView();
+        case AppSection.operacionesFabricacion:
+          return const OperacionesFabricacionView();
+        case AppSection.operacionesAjustes:
+          return const OperacionesAjustesView();
+        case AppSection.proveedores:
+          return const ProveedoresListView();
+        case AppSection.operacionesBases:
+          return const BasesListView(currentSection: AppSection.operacionesBases);
+        case AppSection.operacionesProductos:
+          return const ProductosListView(
+            currentSection: AppSection.operacionesProductos,
+          );
         case AppSection.productos:
           return const ProductosListView();
-        case AppSection.bancos:
-          return const CuentasListView();
         case AppSection.clientes:
           return const ClientesListView();
+        case AppSection.bases:
+          return const BasesListView();
+        case AppSection.bancos:
+          return const CuentasListView();
         case AppSection.usuarios:
           return const PerfilesListView();
-        case AppSection.pedidos:
-          return const PedidosListView();
       }
     }
 
@@ -91,6 +117,11 @@ class AppDrawer extends StatelessWidget {
               return const Center(child: CircularProgressIndicator());
             }
             final Set<String> modules = snapshot.data ?? <String>{};
+            final List<_DrawerEntry> moduleEntries =
+                _moduleEntriesForCurrent(modules);
+            final List<_DrawerEntry> extraEntries =
+                _extraEntries(modules, moduleEntries);
+
             return ListView(
               padding: EdgeInsets.zero,
               children: <Widget>[
@@ -114,64 +145,22 @@ class AppDrawer extends StatelessWidget {
                   onTap: () => _goToModules(context),
                 ),
                 const Divider(),
-                if (_canSeeSection(modules, AppSection.pedidos))
-                  _buildTile(
-                    context,
-                    icon: Icons.assignment_outlined,
-                    title: 'Pedidos',
-                    section: AppSection.pedidos,
-                  ),
-                if (_canSeeSection(modules, AppSection.movimientos))
-                  _buildTile(
-                    context,
-                    icon: Icons.local_shipping_outlined,
-                    title: 'Movimientos',
-                    section: AppSection.movimientos,
-                  ),
-                if (_canSeeSection(modules, AppSection.viajes))
-                  _buildTile(
-                    context,
-                    icon: Icons.route_outlined,
-                    title: 'Viajes',
-                    section: AppSection.viajes,
-                  ),
-                if (_canSeeSection(modules, AppSection.viajesDetalle))
-                  _buildTile(
-                    context,
-                    icon: Icons.playlist_add_check_outlined,
-                    title: 'Detalle de viajes',
-                    section: AppSection.viajesDetalle,
-                  ),
-                const Divider(),
-                if (_canSeeSection(modules, AppSection.productos))
-                  _buildTile(
-                    context,
-                    icon: Icons.fastfood_outlined,
-                    title: 'Productos',
-                    section: AppSection.productos,
-                  ),
-                if (_canSeeSection(modules, AppSection.clientes))
-                  _buildTile(
-                    context,
-                    icon: Icons.people_alt_outlined,
-                    title: 'Clientes',
-                    section: AppSection.clientes,
-                  ),
-                if (_canSeeSection(modules, AppSection.bancos))
-                  _buildTile(
-                    context,
-                    icon: Icons.account_balance_wallet_outlined,
-                    title: 'Bancos',
-                    section: AppSection.bancos,
-                  ),
-                const Divider(),
-                if (_canSeeSection(modules, AppSection.usuarios))
-                  _buildTile(
-                    context,
-                    icon: Icons.admin_panel_settings_outlined,
-                    title: 'Usuarios',
-                    section: AppSection.usuarios,
-                  ),
+                if (moduleEntries.isEmpty)
+                  const ListTile(
+                    title: Text('Sin accesos configurados para este módulo.'),
+                    subtitle: Text('Solicita permisos a un administrador.'),
+                    enabled: false,
+                  )
+                else
+                  ...moduleEntries
+                      .map((entry) => _buildTile(context, entry: entry))
+                      .toList(),
+                if (extraEntries.isNotEmpty) ...<Widget>[
+                  const Divider(),
+                  ...extraEntries
+                      .map((entry) => _buildTile(context, entry: entry))
+                      .toList(),
+                ],
                 const Divider(),
                 ListTile(
                   leading: const Icon(Icons.logout),
@@ -186,18 +175,191 @@ class AppDrawer extends StatelessWidget {
     );
   }
 
+  List<_DrawerEntry> _moduleEntriesForCurrent(Set<String> modules) {
+    final String? moduleId = kSectionModuleMap[current];
+    if (moduleId == null) {
+      final _DrawerEntry? fallback = _entryFor(current);
+      return fallback == null ? <_DrawerEntry>[] : <_DrawerEntry>[fallback];
+    }
+
+    final ModuleDefinition? definition = kModuleCatalog[moduleId];
+    final List<AppSection> sections =
+        definition?.sections ?? <AppSection>[current];
+
+    return sections
+        .where((AppSection section) => _canSeeSection(modules, section))
+        .map(_entryFor)
+        .whereType<_DrawerEntry>()
+        .toList();
+  }
+
+  List<_DrawerEntry> _extraEntries(
+    Set<String> modules,
+    List<_DrawerEntry> moduleEntries,
+  ) {
+    final Set<AppSection> moduleSections =
+        moduleEntries.map((_) => _.section).toSet();
+    final List<_DrawerEntry> extras = <_DrawerEntry>[];
+
+    for (final AppSection section in _extraSectionsForCurrent()) {
+      if (moduleSections.contains(section)) {
+        continue;
+      }
+      if (!_canSeeSection(modules, section)) {
+        continue;
+      }
+      final _DrawerEntry? entry = _entryFor(section);
+      if (entry != null) {
+        extras.add(entry);
+      }
+    }
+    return extras;
+  }
+
+  List<AppSection> _extraSectionsForCurrent() {
+    final String? moduleId = kSectionModuleMap[current];
+    if (moduleId == 'pedidos') {
+      return const <AppSection>[
+        AppSection.clientes,
+        AppSection.bases,
+        AppSection.productos,
+        AppSection.bancos,
+      ];
+    }
+    return const <AppSection>[];
+  }
+
+  _DrawerEntry? _entryFor(AppSection section) {
+    switch (section) {
+      case AppSection.pedidos:
+        return _DrawerEntry(
+          section,
+          Icons.assignment_outlined,
+          'Pedidos',
+        );
+      case AppSection.movimientos:
+        return _DrawerEntry(
+          section,
+          Icons.local_shipping_outlined,
+          'Movimientos',
+        );
+      case AppSection.viajes:
+        return _DrawerEntry(
+          section,
+          Icons.route_outlined,
+          'Viajes',
+        );
+      case AppSection.viajesDetalle:
+        return _DrawerEntry(
+          section,
+          Icons.playlist_add_check_outlined,
+          'Detalle de viajes',
+        );
+      case AppSection.operacionesStock:
+        return _DrawerEntry(
+          section,
+          Icons.inventory_2_outlined,
+          'Stock',
+        );
+      case AppSection.operacionesHistorial:
+        return _DrawerEntry(
+          section,
+          Icons.history,
+          'Historial',
+        );
+      case AppSection.operacionesCompras:
+        return _DrawerEntry(
+          section,
+          Icons.receipt_long_outlined,
+          'Compras',
+        );
+      case AppSection.operacionesTransferencias:
+        return _DrawerEntry(
+          section,
+          Icons.compare_arrows_outlined,
+          'Transferencias',
+        );
+      case AppSection.operacionesFabricacion:
+        return _DrawerEntry(
+          section,
+          Icons.precision_manufacturing_outlined,
+          'Fabricación',
+        );
+      case AppSection.operacionesAjustes:
+        return _DrawerEntry(
+          section,
+          Icons.tune_outlined,
+          'Ajustes',
+        );
+      case AppSection.operacionesBases:
+        return _DrawerEntry(
+          section,
+          Icons.home_work_outlined,
+          'Bases',
+        );
+      case AppSection.operacionesProductos:
+        return _DrawerEntry(
+          section,
+          Icons.fastfood_outlined,
+          'Productos',
+        );
+      case AppSection.productos:
+        return _DrawerEntry(
+          section,
+          Icons.fastfood_outlined,
+          'Productos',
+        );
+      case AppSection.clientes:
+        return _DrawerEntry(
+          section,
+          Icons.people_alt_outlined,
+          'Clientes',
+        );
+      case AppSection.bases:
+        return _DrawerEntry(
+          section,
+          Icons.home_work_outlined,
+          'Bases',
+        );
+      case AppSection.proveedores:
+        return _DrawerEntry(
+          section,
+          Icons.store_mall_directory_outlined,
+          'Proveedores',
+        );
+      case AppSection.bancos:
+        return _DrawerEntry(
+          section,
+          Icons.account_balance_wallet_outlined,
+          'Bancos',
+        );
+      case AppSection.usuarios:
+        return _DrawerEntry(
+          section,
+          Icons.admin_panel_settings_outlined,
+          'Usuarios',
+        );
+    }
+  }
+
   Widget _buildTile(
     BuildContext context, {
-    required IconData icon,
-    required String title,
-    required AppSection section,
+    required _DrawerEntry entry,
   }) {
-    final bool selected = section == current;
+    final bool selected = entry.section == current;
     return ListTile(
-      leading: Icon(icon),
-      title: Text(title),
+      leading: Icon(entry.icon),
+      title: Text(entry.title),
       selected: selected,
-      onTap: () => _navigate(context, section),
+      onTap: () => _navigate(context, entry.section),
     );
   }
+}
+
+class _DrawerEntry {
+  const _DrawerEntry(this.section, this.icon, this.title);
+
+  final AppSection section;
+  final IconData icon;
+  final String title;
 }

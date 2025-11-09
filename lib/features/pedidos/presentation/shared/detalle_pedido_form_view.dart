@@ -177,7 +177,7 @@ class _DetallePedidoFormViewState extends State<DetallePedidoFormView> {
             if (_isLoadingProductos)
               const LinearProgressIndicator(minHeight: 2),
             DropdownButtonFormField<String>(
-              value: _selectedProductoId,
+              initialValue: _selectedProductoId,
               items: items,
               decoration: const InputDecoration(
                 labelText: 'Producto',

@@ -60,7 +60,6 @@ class _PedidosFormViewState extends State<PedidosFormView> {
 
   bool get _isEditing => widget.pedido != null;
   bool get _isDraftContext => !_isEditing;
-  bool get _hasPersistedPedido => _pedidoId != null;
   late final List<_InlineFormSectionConfigBase> _inlineSections =
       _buildInlineSections();
 
@@ -475,9 +474,6 @@ class _PedidosFormViewState extends State<PedidosFormView> {
       _detalles.removeAt(index);
     });
   }
-
-  double _detalleTotal(DetallePedido detalle) =>
-      detalle.cantidad * detalle.precioventa;
 
   Widget _buildReadOnlyTimestamp() {
     final DateTime? created = _registradoAt ??
@@ -1026,7 +1022,6 @@ class _PedidosFormViewState extends State<PedidosFormView> {
           clienteId: _selectedClienteId,
           movimiento: row?.base,
           detalles: row?.detalles,
-          resumen: row?.resumen,
           pedidoSnapshots: snapshots.isEmpty ? null : snapshots,
           pedidoDraftMovimientoConsumos: draftBuffer,
         ),

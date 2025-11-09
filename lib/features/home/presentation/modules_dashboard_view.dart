@@ -4,9 +4,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:demo_pedidos/features/administracion/presentation/list/perfiles_list_view.dart';
 import 'package:demo_pedidos/features/clientes/presentation/list/clientes_list_view.dart';
 import 'package:demo_pedidos/features/cuentas/presentation/list/cuentas_list_view.dart';
-import 'package:demo_pedidos/features/movimientos/presentation/list/movimientos_list_view.dart';
 import 'package:demo_pedidos/features/pedidos/presentation/list/pedidos_list_view.dart';
 import 'package:demo_pedidos/features/viajes/presentation/list/viaje_detalles_list_view.dart';
+import 'package:demo_pedidos/features/operaciones/presentation/operaciones_dashboard_view.dart';
 import 'package:demo_pedidos/services/module_access_service.dart';
 import 'package:demo_pedidos/shared/module_definitions.dart';
 
@@ -42,7 +42,7 @@ class _ModulesDashboardViewState extends State<ModulesDashboardView> {
         case 'pedidos':
           return const PedidosListView();
         case 'operaciones':
-          return const MovimientosListView();
+          return const OperacionesDashboardView();
         case 'almacen':
           return const ViajeDetallesListView();
         case 'bases':
