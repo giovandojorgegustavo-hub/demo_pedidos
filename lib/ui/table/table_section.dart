@@ -65,6 +65,8 @@ class TableSection<T> extends StatefulWidget {
     this.showTableHeader = true,
     this.shrinkWrap = false,
     this.selectionConfig,
+    this.dataRowMaxHeight,
+    this.dataRowMaxHeightBuilder,
   });
 
   final List<T> items;
@@ -86,6 +88,8 @@ class TableSection<T> extends StatefulWidget {
   final bool showTableHeader;
   final bool shrinkWrap;
   final TableSelectionConfig<T>? selectionConfig;
+  final double? dataRowMaxHeight;
+  final double? Function(List<T> items)? dataRowMaxHeightBuilder;
 
   @override
   State<TableSection<T>> createState() => _TableSectionState<T>();
@@ -385,17 +389,16 @@ class _TableSectionState<T> extends State<TableSection<T>> {
   }) {
     final double headingHeight = widget.dense ? 32 : 48;
     final double rowHeight = widget.dense ? 36 : 52;
-    final bool selectionEnabled = selectionConfig != null;
-    final bool selectionMode =
-        selectionEnabled && selectionConfig!.selectionMode;
+    final TableSelectionConfig<T>? config = selectionConfig;
+    final bool selectionMode = config?.selectionMode ?? false;
     final bool showCheckboxColumn =
-        selectionMode && selectionConfig!.showCheckboxColumn;
+        selectionMode && (config?.showCheckboxColumn ?? false);
     final ValueChanged<T>? effectiveRowTap =
-        selectionEnabled && selectionMode && selectionConfig != null
+        selectionMode && config != null
             ? (T item) {
                 final bool currentlySelected =
-                    selectionConfig.isItemSelected(item);
-                selectionConfig.onSelectionChange(item, !currentlySelected);
+                    config.isItemSelected(item);
+                config.onSelectionChange(item, !currentlySelected);
               }
             : widget.onRowTap;
     bool? headerCheckboxValue;
@@ -420,6 +423,9 @@ class _TableSectionState<T> extends State<TableSection<T>> {
         minWidth: widget.minTableWidth,
         headingRowHeight: widget.showTableHeader ? headingHeight : 0,
         dataRowHeight: rowHeight,
+        dataRowMaxHeight:
+            widget.dataRowMaxHeightBuilder?.call(items) ??
+                widget.dataRowMaxHeight,
         horizontalMargin: widget.dense ? 12 : 16,
         columnSpacing: widget.dense ? 20 : 24,
         sortColumnIndex: _sortColumnIndex,
@@ -427,35 +433,33 @@ class _TableSectionState<T> extends State<TableSection<T>> {
         onSort: widget.showTableHeader ? _handleSort : null,
         showCheckboxColumn: showCheckboxColumn,
         selectedRowIndexes: selectionMode ? selectedIndexes : null,
-        onSelectRow: showCheckboxColumn && selectionConfig != null
+        onSelectRow: showCheckboxColumn && config != null
             ? (int index, bool selected) {
                 final T item = items[index];
-                selectionConfig.onSelectionChange(item, selected);
+                config.onSelectionChange(item, selected);
               }
             : null,
         selectionMode: selectionMode,
         onRowLongPress: !selectionMode &&
-                selectionConfig?.onRequestSelectionStart != null
+                config?.onRequestSelectionStart != null
             ? (int index) {
                 final T item = items[index];
-                selectionConfig?.onRequestSelectionStart?.call(item);
+                config?.onRequestSelectionStart?.call(item);
               }
             : null,
         headerCheckboxValue: headerCheckboxValue,
-        onHeaderCheckboxChanged: showCheckboxColumn &&
-                selectionConfig != null &&
-                items.isNotEmpty
-            ? (bool? value) {
-                final bool shouldSelect = value ?? false;
-                for (final T item in items) {
-                  final bool currently =
-                      selectionConfig.isItemSelected(item);
-                  if (currently != shouldSelect) {
-                    selectionConfig.onSelectionChange(item, shouldSelect);
+        onHeaderCheckboxChanged:
+            showCheckboxColumn && config != null && items.isNotEmpty
+                ? (bool? value) {
+                    final bool shouldSelect = value ?? false;
+                    for (final T item in items) {
+                      final bool currently = config.isItemSelected(item);
+                      if (currently != shouldSelect) {
+                        config.onSelectionChange(item, shouldSelect);
+                      }
+                    }
                   }
-                }
-              }
-            : null,
+                : null,
       ),
     );
   }

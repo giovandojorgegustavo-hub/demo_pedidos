@@ -21,7 +21,6 @@ import 'package:demo_pedidos/ui/standard_data_table.dart';
 import 'package:demo_pedidos/models/producto.dart';
 import 'package:demo_pedidos/ui/table/detail_inline_section.dart';
 import 'package:demo_pedidos/ui/table/detail_row_actions.dart';
-import 'package:demo_pedidos/ui/table/table_section.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:demo_pedidos/shared/app_sections.dart';
@@ -681,6 +680,40 @@ class _PedidosDetalleViewState extends State<PedidosDetalleView> {
     ];
   }
 
+  String _movimientoDestinoTexto(
+    MovimientoResumen? resumen,
+    bool esProvincia,
+  ) {
+    if (resumen == null) {
+      return esProvincia ? '-' : 'Sin dirección';
+    }
+    if (esProvincia) {
+      final List<String> parts = <String>[];
+      final String destino = (resumen.provinciaDestino ?? '').trim();
+      if (destino.isNotEmpty) {
+        parts.add(destino);
+      }
+      final String destinatario = (resumen.provinciaDestinatario ?? '').trim();
+      if (destinatario.isNotEmpty) {
+        parts.add('Destinatario: $destinatario');
+      }
+      final String dni = (resumen.provinciaDni ?? '').trim();
+      if (dni.isNotEmpty) {
+        parts.add('DNI: $dni');
+      }
+      return parts.isEmpty ? '-' : parts.join('\n');
+    }
+    final String direccion = (resumen.direccion ?? '').trim();
+    final String referencia = (resumen.direccionReferencia ?? '').trim();
+    if (referencia.isEmpty) {
+      return direccion.isEmpty ? 'Sin dirección' : direccion;
+    }
+    if (direccion.isEmpty) {
+      return 'Ref: $referencia';
+    }
+    return '$direccion\nRef: $referencia';
+  }
+
   List<TableColumnConfig<_MovimientoItem>> _movimientoColumns() {
     String contacto(MovimientoResumen? resumen) {
       if (resumen == null) {
@@ -695,38 +728,6 @@ class _PedidosDetalleViewState extends State<PedidosDetalleView> {
         return clienteNumero;
       }
       return '-';
-    }
-
-    String destino(MovimientoResumen? resumen, bool esProvincia) {
-      if (resumen == null) {
-        return esProvincia ? '-' : 'Sin dirección';
-      }
-      if (esProvincia) {
-        final List<String> parts = <String>[];
-        final String destino = (resumen.provinciaDestino ?? '').trim();
-        if (destino.isNotEmpty) {
-          parts.add(destino);
-        }
-        final String destinatario =
-            (resumen.provinciaDestinatario ?? '').trim();
-        if (destinatario.isNotEmpty) {
-          parts.add('Destinatario: $destinatario');
-        }
-        final String dni = (resumen.provinciaDni ?? '').trim();
-        if (dni.isNotEmpty) {
-          parts.add('DNI: $dni');
-        }
-        return parts.isEmpty ? '-' : parts.join('\n');
-      }
-      final String direccion = (resumen.direccion ?? '').trim();
-      final String referencia = (resumen.direccionReferencia ?? '').trim();
-      if (referencia.isEmpty) {
-        return direccion.isEmpty ? 'Sin dirección' : direccion;
-      }
-      if (direccion.isEmpty) {
-        return 'Ref: $referencia';
-      }
-      return '$direccion\nRef: $referencia';
     }
 
     String baseNombre(
@@ -757,9 +758,9 @@ class _PedidosDetalleViewState extends State<PedidosDetalleView> {
       TableColumnConfig<_MovimientoItem>(
         label: 'Dirección / Destino',
         sortAccessor: (_MovimientoItem item) =>
-            destino(item.resumen, item.base.esProvincia),
+            _movimientoDestinoTexto(item.resumen, item.base.esProvincia),
         cellBuilder: (_MovimientoItem item) =>
-            Text(destino(item.resumen, item.base.esProvincia)),
+            Text(_movimientoDestinoTexto(item.resumen, item.base.esProvincia)),
       ),
       TableColumnConfig<_MovimientoItem>(
         label: 'Provincia',
@@ -1006,6 +1007,17 @@ class _PedidosDetalleViewState extends State<PedidosDetalleView> {
                             _openMovimientoDetalle(item.base.id),
                         emptyMessage: 'Sin movimientos registrados.',
                         minTableWidth: minTableWidth,
+                        rowMaxHeightBuilder: (List<_MovimientoItem> items) {
+                          final bool needsExtra = items.any(
+                            (_MovimientoItem item) =>
+                                item.base.esProvincia &&
+                                _movimientoDestinoTexto(
+                                      item.resumen,
+                                      item.base.esProvincia,
+                                    ).contains('\n'),
+                          );
+                          return needsExtra ? 108 : null;
+                        },
                       ),
                     ],
                   ),

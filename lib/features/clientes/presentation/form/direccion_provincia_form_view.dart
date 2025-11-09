@@ -40,9 +40,8 @@ class _DireccionProvinciaFormViewState
     final Map<String, dynamic> payload = <String, dynamic>{
       'idcliente': widget.clienteId,
       'lugar_llegada': _destinoController.text.trim(),
-      if (_destinatarioController.text.trim().isNotEmpty)
-        'nombre_completo': _destinatarioController.text.trim(),
-      if (_dniController.text.trim().isNotEmpty) 'dni': _dniController.text.trim(),
+      'nombre_completo': _destinatarioController.text.trim(),
+      'dni': _dniController.text.trim(),
     };
     try {
       final Map<String, dynamic> inserted = await _supabase
@@ -96,18 +95,30 @@ class _DireccionProvinciaFormViewState
             TextFormField(
               controller: _destinatarioController,
               decoration: const InputDecoration(
-                labelText: 'Destinatario (opcional)',
+                labelText: 'Destinatario',
                 border: OutlineInputBorder(),
               ),
+              validator: (String? value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Ingresa el nombre del destinatario';
+                }
+                return null;
+              },
             ),
             const SizedBox(height: 16),
             TextFormField(
               controller: _dniController,
               decoration: const InputDecoration(
-                labelText: 'DNI (opcional)',
+                labelText: 'DNI',
                 border: OutlineInputBorder(),
               ),
               keyboardType: TextInputType.number,
+              validator: (String? value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Ingresa el DNI';
+                }
+                return null;
+              },
             ),
           ],
         ),

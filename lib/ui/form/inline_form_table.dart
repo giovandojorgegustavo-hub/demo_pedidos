@@ -15,6 +15,7 @@ class InlineFormTable<T> extends StatelessWidget {
     this.onRowTap,
     this.emptyMessage = 'Sin registros',
     this.helperText,
+    this.rowMaxHeight,
   });
 
   final String title;
@@ -25,6 +26,7 @@ class InlineFormTable<T> extends StatelessWidget {
   final ValueChanged<T>? onRowTap;
   final String emptyMessage;
   final String? helperText;
+  final double? rowMaxHeight;
 
   @override
   Widget build(BuildContext context) {
@@ -66,6 +68,7 @@ class InlineFormTable<T> extends StatelessWidget {
               noResultsMessage: emptyMessage,
               shrinkWrap: true,
               showTableHeader: true,
+              dataRowMaxHeight: rowMaxHeight,
               emptyBuilder: (_) => Padding(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 child: Center(

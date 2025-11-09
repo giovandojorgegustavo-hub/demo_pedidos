@@ -29,6 +29,7 @@ class StandardDataTable<T> extends StatelessWidget {
     this.minWidth = 600,
     this.headingRowHeight = 38,
     this.dataRowHeight = 44,
+    this.dataRowMaxHeight,
     this.horizontalMargin = 12,
     this.columnSpacing = 24,
     this.sortColumnIndex,
@@ -49,6 +50,7 @@ class StandardDataTable<T> extends StatelessWidget {
   final double minWidth;
   final double headingRowHeight;
   final double dataRowHeight;
+  final double? dataRowMaxHeight;
   final double horizontalMargin;
   final double columnSpacing;
   final int? sortColumnIndex;
@@ -86,11 +88,15 @@ class StandardDataTable<T> extends StatelessWidget {
           );
         }
 
+        final double? effectiveMaxHeight = dataRowMaxHeight != null &&
+                dataRowMaxHeight! >= dataRowHeight
+            ? dataRowMaxHeight
+            : null;
         final DataTable table = DataTable(
           showCheckboxColumn: false,
           headingRowHeight: headingRowHeight,
           dataRowMinHeight: dataRowHeight,
-          dataRowMaxHeight: dataRowHeight,
+          dataRowMaxHeight: effectiveMaxHeight ?? dataRowHeight,
           horizontalMargin: horizontalMargin,
           columnSpacing: columnSpacing,
           sortColumnIndex: sortColumnIndex,

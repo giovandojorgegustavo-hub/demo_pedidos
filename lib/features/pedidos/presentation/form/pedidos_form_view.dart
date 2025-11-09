@@ -406,6 +406,17 @@ class _PedidosFormViewState extends State<PedidosFormView> {
             state._loadMovimientos(),
         visiblePredicate: (_PedidosFormViewState state) => true,
         loadOnInitWhenEditing: true,
+        rowMaxHeightBuilder: (_PedidosFormViewState state,
+            List<_MovimientoRow> items) {
+          final bool needsExtraHeight = items.any(
+            (_MovimientoRow row) =>
+                row.base.esProvincia &&
+                state
+                    ._movimientoDestino(row.resumen, row.base.esProvincia)
+                    .contains('\n'),
+          );
+          return needsExtraHeight ? 108 : null;
+        },
       ),
     ];
   }
@@ -1340,6 +1351,8 @@ class _InlineFormSectionConfig<T> extends _InlineFormSectionConfigBase {
     this.loadDataCallback,
     this.visiblePredicate,
     this.loadOnInitWhenEditing = false,
+    this.rowMaxHeight,
+    this.rowMaxHeightBuilder,
   });
 
   final String key;
@@ -1357,6 +1370,9 @@ class _InlineFormSectionConfig<T> extends _InlineFormSectionConfigBase {
   final bool Function(_PedidosFormViewState state)? visiblePredicate;
   @override
   final bool loadOnInitWhenEditing;
+  final double? rowMaxHeight;
+  final double? Function(_PedidosFormViewState state, List<T> items)?
+      rowMaxHeightBuilder;
 
   @override
   Future<void> loadData(_PedidosFormViewState state) {
@@ -1377,6 +1393,8 @@ class _InlineFormSectionConfig<T> extends _InlineFormSectionConfigBase {
     }
 
     final List<T> items = itemsSelector(state);
+    final double? effectiveRowMaxHeight =
+        rowMaxHeightBuilder?.call(state, items) ?? rowMaxHeight;
     return InlineFormTable<T>(
       title: title,
       items: items,
@@ -1384,6 +1402,7 @@ class _InlineFormSectionConfig<T> extends _InlineFormSectionConfigBase {
       minTableWidth: minTableWidth,
       emptyMessage: emptyMessage,
       helperText: helperText,
+      rowMaxHeight: effectiveRowMaxHeight,
       onAdd: onAdd == null ? null : () => onAdd!(state),
       onRowTap: onEdit == null ? null : (T item) => onEdit!(state, item),
     );

@@ -116,12 +116,14 @@ class _ModulesDashboardViewState extends State<ModulesDashboardView> {
               final double width = constraints.maxWidth.isFinite
                   ? constraints.maxWidth
                   : MediaQuery.of(context).size.width;
-              final int columns = width >= 1100 ? 3 : 2;
-              final double aspectRatio = width >= 1100
+              final bool isDesktop = width >= 1100;
+              final bool isTablet = width >= 600 && width < 1100;
+              final int columns = isDesktop ? 3 : 2;
+              final double aspectRatio = isDesktop
                   ? 5 / 3
-                  : width >= 600
+                  : isTablet
                       ? 4 / 3
-                      : 3 / 2;
+                      : 0.85; // tarjetas más altas en móviles
               return Padding(
                 padding: const EdgeInsets.all(16),
                 child: GridView.builder(
@@ -160,41 +162,69 @@ class _ModuleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 2,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Icon(definition.icon,
-                  size: 32, color: Theme.of(context).primaryColor),
-              const SizedBox(height: 12),
-              Text(
-                definition.title,
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 8),
-              Expanded(
-                child: Text(
-                  definition.description,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ),
-              Align(
-                alignment: Alignment.bottomRight,
-                child: TextButton(
-                  onPressed: onTap,
-                  child: const Text('Ingresar'),
-                ),
-              ),
-            ],
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final ThemeData theme = Theme.of(context);
+        final bool compact = constraints.maxWidth < 180;
+        final TextStyle titleStyle = compact
+            ? theme.textTheme.titleMedium!
+                .copyWith(fontWeight: FontWeight.w600)
+            : theme.textTheme.titleLarge!;
+        final TextStyle bodyStyle =
+            theme.textTheme.bodyMedium ?? const TextStyle();
+        final bool showDescription =
+            !compact && definition.description.trim().isNotEmpty;
+
+        return Card(
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
           ),
-        ),
-      ),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Icon(
+                    definition.icon,
+                    size: compact ? 26 : 32,
+                    color: theme.primaryColor,
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    definition.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: titleStyle,
+                  ),
+                  const SizedBox(height: 8),
+                  if (showDescription)
+                    Expanded(
+                      child: Text(
+                        definition.description,
+                        maxLines: compact ? 2 : 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: bodyStyle,
+                      ),
+                    )
+                  else
+                    const Spacer(),
+                  Align(
+                    alignment: Alignment.bottomRight,
+                    child: TextButton(
+                      onPressed: onTap,
+                      child: const Text('Ingresar'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

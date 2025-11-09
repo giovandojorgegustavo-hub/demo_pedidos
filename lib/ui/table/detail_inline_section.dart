@@ -14,6 +14,8 @@ class DetailInlineSection<T> extends StatelessWidget {
     this.onView,
     this.emptyMessage = 'Sin registros',
     this.showTableHeader = true,
+    this.rowMaxHeight,
+    this.rowMaxHeightBuilder,
   });
 
   final String title;
@@ -25,6 +27,8 @@ class DetailInlineSection<T> extends StatelessWidget {
   final VoidCallback? onView;
   final String emptyMessage;
   final bool showTableHeader;
+  final double? rowMaxHeight;
+  final double? Function(List<T> items)? rowMaxHeightBuilder;
 
   bool get _hasActions => onAdd != null || onView != null;
 
@@ -68,6 +72,8 @@ class DetailInlineSection<T> extends StatelessWidget {
                   ),
                   showTableHeader: showTableHeader,
                   shrinkWrap: true,
+                  dataRowMaxHeight:
+                      rowMaxHeightBuilder?.call(items) ?? rowMaxHeight,
                 ),
                 if (compact && _hasActions) ...<Widget>[
                   const SizedBox(height: 12),
