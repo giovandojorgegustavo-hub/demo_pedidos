@@ -26,6 +26,8 @@ class DetailInlineSection<T> extends StatelessWidget {
   final String emptyMessage;
   final bool showTableHeader;
 
+  bool get _hasActions => onAdd != null || onView != null;
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
@@ -33,54 +35,73 @@ class DetailInlineSection<T> extends StatelessWidget {
       margin: const EdgeInsets.symmetric(vertical: 8),
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            Row(
+        child: LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            final bool compact = constraints.maxWidth < 520;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                Expanded(
-                  child: Text(
-                    '$title (${items.length})',
-                    style: theme.textTheme.titleMedium,
-                  ),
-                ),
-                Wrap(
-                  spacing: 8,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    if (onView != null)
-                      TextButton(
-                        onPressed: onView,
-                        child: const Text('Ver'),
+                    Expanded(
+                      child: Text(
+                        '$title (${items.length})',
+                        style: theme.textTheme.titleMedium,
                       ),
-                    if (onAdd != null)
-                      TextButton.icon(
-                        onPressed: onAdd,
-                        icon: const Icon(Icons.add),
-                        label: const Text('Agregar'),
-                      ),
+                    ),
+                    if (!compact && _hasActions) _buildActionsRow(),
                   ],
                 ),
+                const SizedBox(height: 12),
+                TableSection<T>(
+                  items: items,
+                  columns: columns,
+                  onRowTap: onRowTap,
+                  minTableWidth: minTableWidth,
+                  dense: true,
+                  emptyMessage: emptyMessage,
+                  noResultsMessage: emptyMessage,
+                  emptyBuilder: (_) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    child: Center(child: Text(emptyMessage)),
+                  ),
+                  showTableHeader: showTableHeader,
+                  shrinkWrap: true,
+                ),
+                if (compact && _hasActions) ...<Widget>[
+                  const SizedBox(height: 12),
+                  _buildActionsRow(mainAxisAlignment: MainAxisAlignment.start),
+                ],
               ],
-            ),
-            const SizedBox(height: 12),
-            TableSection<T>(
-              items: items,
-              columns: columns,
-              onRowTap: onRowTap,
-              minTableWidth: minTableWidth,
-              dense: true,
-              emptyMessage: emptyMessage,
-              noResultsMessage: emptyMessage,
-              emptyBuilder: (_) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 24),
-                child: Center(child: Text(emptyMessage)),
-              ),
-              showTableHeader: showTableHeader,
-              shrinkWrap: true,
-            ),
-          ],
+            );
+          },
         ),
       ),
+    );
+  }
+
+  Widget _buildActionsRow(
+      {MainAxisAlignment mainAxisAlignment = MainAxisAlignment.end}) {
+    return Wrap(
+      alignment: mainAxisAlignment == MainAxisAlignment.start
+          ? WrapAlignment.start
+          : WrapAlignment.end,
+      spacing: 8,
+      runSpacing: 8,
+      children: <Widget>[
+        if (onView != null)
+          TextButton(
+            onPressed: onView,
+            child: const Text('Ver'),
+          ),
+        if (onAdd != null)
+          TextButton.icon(
+            onPressed: onAdd,
+            icon: const Icon(Icons.add),
+            label: const Text('Agregar'),
+          ),
+      ],
     );
   }
 }
