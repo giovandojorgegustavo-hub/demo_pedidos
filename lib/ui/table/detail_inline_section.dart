@@ -99,7 +99,7 @@ class DetailInlineSection<T> extends StatelessWidget {
           TextButton.icon(
             onPressed: onAdd,
             icon: const Icon(Icons.add),
-            label: const Text('Agregar'),
+            label: const Text('Add'),
           ),
       ],
     );

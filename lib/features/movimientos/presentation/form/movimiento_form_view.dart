@@ -1088,7 +1088,7 @@ class _MovimientoFormViewState extends State<MovimientoFormView> {
                     children: <Widget>[
                       Expanded(
                         child: Text(
-                          'Detalle del movimiento',
+                          'Movimiento det',
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                       ),
@@ -1100,7 +1100,7 @@ class _MovimientoFormViewState extends State<MovimientoFormView> {
                           OutlinedButton.icon(
                             onPressed: () => _openDetalleForm(),
                             icon: const Icon(Icons.add),
-                            label: const Text('Agregar'),
+                            label: const Text('Add'),
                           ),
                           ElevatedButton.icon(
                             onPressed: _isCompletingPedido ||
@@ -1123,7 +1123,7 @@ class _MovimientoFormViewState extends State<MovimientoFormView> {
                                       ? 'Calculando...'
                                       : _hasProductosPedido
                                           ? (_shouldShowCompletarPedidoButton
-                                              ? 'Completar pedido'
+                                              ? 'Completar'
                                               : 'Sin pendientes')
                                           : 'Sin productos',
                             ),

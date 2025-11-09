@@ -1,0 +1,6 @@
+cd ~/Documentos/demo_pedidos
+git status
+git add -A
+git commit -m "PRueba a"
+git push
+

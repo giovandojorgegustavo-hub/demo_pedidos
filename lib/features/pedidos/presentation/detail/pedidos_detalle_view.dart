@@ -594,9 +594,10 @@ class _PedidosDetalleViewState extends State<PedidosDetalleView> {
         label: 'Acciones',
         cellBuilder: (_DetalleItem item) => DetailRowActions(
           onEdit: () => _openDetalleForm(item.detalle),
-          onDelete: item.detalle.id == null || _deletingDetalleId == item.detalle.id
-              ? null
-              : () => _deleteDetalle(item.detalle),
+          onDelete:
+              item.detalle.id == null || _deletingDetalleId == item.detalle.id
+                  ? null
+                  : () => _deleteDetalle(item.detalle),
           isDeleting: _deletingDetalleId == item.detalle.id,
         ),
       ),
@@ -951,7 +952,7 @@ class _PedidosDetalleViewState extends State<PedidosDetalleView> {
                       _buildSummaryCard(pedido),
                       const SizedBox(height: 16),
                       DetailInlineSection<_DetalleItem>(
-                        title: 'Productos del pedido',
+                        title: 'Detalle Ped',
                         items: _detalles,
                         columns: detalleColumns,
                         emptyMessage: 'Sin productos en este pedido.',
@@ -973,7 +974,7 @@ class _PedidosDetalleViewState extends State<PedidosDetalleView> {
                       ),
                       const SizedBox(height: 16),
                       DetailInlineSection<CargoCliente>(
-                        title: 'Cargos al cliente',
+                        title: 'Cargos',
                         items: _cargos,
                         columns: _cargoColumns(),
                         onAdd: () => _openCargoForm(),
@@ -983,12 +984,12 @@ class _PedidosDetalleViewState extends State<PedidosDetalleView> {
                       ),
                       const SizedBox(height: 16),
                       DetailInlineSection<_MovimientoItem>(
-                        title: 'Movimientos logísticos',
+                        title: 'Detalle Mov',
                         items: _movimientos,
                         columns: _movimientoColumns(),
                         onAdd: () => _openMovimientoForm(),
                         onView: _openMovimientosTable,
-                        onRowTap: ( _MovimientoItem item) =>
+                        onRowTap: (_MovimientoItem item) =>
                             _openMovimientoDetalle(item.base.id),
                         emptyMessage: 'Sin movimientos registrados.',
                         minTableWidth: minTableWidth,
