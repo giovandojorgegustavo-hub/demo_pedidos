@@ -9,6 +9,7 @@ import 'package:demo_pedidos/models/movimiento_pedido.dart';
 import 'package:demo_pedidos/models/movimiento_resumen.dart';
 import 'package:demo_pedidos/models/pedido.dart';
 import 'package:demo_pedidos/models/producto.dart';
+import 'package:demo_pedidos/models/pedido_detalle_snapshot.dart';
 import 'package:demo_pedidos/ui/form/form_page_scaffold.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -21,6 +22,8 @@ class MovimientoFormView extends StatefulWidget {
     this.movimiento,
     this.detalles,
     this.resumen,
+    this.pedidoSnapshots,
+    this.pedidoDraftMovimientoConsumos,
   });
 
   final String pedidoId;
@@ -28,6 +31,8 @@ class MovimientoFormView extends StatefulWidget {
   final MovimientoPedido? movimiento;
   final List<DetalleMovimiento>? detalles;
   final MovimientoResumen? resumen;
+  final List<PedidoDetalleSnapshot>? pedidoSnapshots;
+  final Map<String, double>? pedidoDraftMovimientoConsumos;
 
   @override
   State<MovimientoFormView> createState() => _MovimientoFormViewState();
@@ -196,6 +201,11 @@ class _MovimientoFormViewState extends State<MovimientoFormView> {
         .select('idproducto,cantidad,productos(nombre)')
         .eq('idpedido', pedidoId);
     if (solicitados.isEmpty) {
+      final Map<String, _ProductoPedidoInfo> snapshot =
+          _applyDraftConsumos(_buildSnapshotProductos());
+      if (snapshot.isNotEmpty) {
+        return snapshot;
+      }
       return <String, _ProductoPedidoInfo>{};
     }
     final Map<String, double> cantidades = <String, double>{};
@@ -233,7 +243,14 @@ class _MovimientoFormViewState extends State<MovimientoFormView> {
         enviado: enviado,
       );
     });
-    return productos;
+    if (productos.isEmpty) {
+      final Map<String, _ProductoPedidoInfo> snapshot =
+          _applyDraftConsumos(_buildSnapshotProductos());
+      if (snapshot.isNotEmpty) {
+        return snapshot;
+      }
+    }
+    return _applyDraftConsumos(productos);
   }
 
   Future<void> _loadClienteCatalogos() async {
@@ -726,6 +743,61 @@ class _MovimientoFormViewState extends State<MovimientoFormView> {
     return restantes;
   }
 
+  Map<String, _ProductoPedidoInfo> _buildSnapshotProductos() {
+    final List<PedidoDetalleSnapshot>? snapshots = widget.pedidoSnapshots;
+    if (snapshots == null || snapshots.isEmpty) {
+      return <String, _ProductoPedidoInfo>{};
+    }
+    final Map<String, double> cantidades = <String, double>{};
+    final Map<String, String?> nombres = <String, String?>{};
+    for (final PedidoDetalleSnapshot snapshot in snapshots) {
+      cantidades[snapshot.idProducto] =
+          (cantidades[snapshot.idProducto] ?? 0) + snapshot.cantidad;
+      nombres[snapshot.idProducto] =
+          snapshot.nombre ?? nombres[snapshot.idProducto];
+    }
+    final Map<String, _ProductoPedidoInfo> result =
+        <String, _ProductoPedidoInfo>{};
+    cantidades.forEach((String productoId, double solicitado) {
+      if (solicitado <= 0) {
+        return;
+      }
+      result[productoId] = _ProductoPedidoInfo(
+        idProducto: productoId,
+        nombre: nombres[productoId] ?? 'Producto',
+        solicitado: solicitado,
+        enviado: 0,
+      );
+    });
+    return result;
+  }
+
+  Map<String, _ProductoPedidoInfo> _applyDraftConsumos(
+    Map<String, _ProductoPedidoInfo> base,
+  ) {
+    final Map<String, double>? borradores =
+        widget.pedidoDraftMovimientoConsumos;
+    if (base.isEmpty || borradores == null || borradores.isEmpty) {
+      return base;
+    }
+    final Map<String, _ProductoPedidoInfo> ajustados =
+        <String, _ProductoPedidoInfo>{};
+    base.forEach((String productoId, _ProductoPedidoInfo info) {
+      final double extra = borradores[productoId] ?? 0;
+      if (extra <= 0.0001) {
+        ajustados[productoId] = info;
+        return;
+      }
+      ajustados[productoId] = _ProductoPedidoInfo(
+        idProducto: info.idProducto,
+        nombre: info.nombre,
+        solicitado: info.solicitado,
+        enviado: info.enviado + extra,
+      );
+    });
+    return ajustados;
+  }
+
   Future<void> _completarPedidoAutomaticamente() async {
     if (_isCompletingPedido || _productosPedido.isEmpty) {
       return;
@@ -1005,6 +1077,7 @@ class _MovimientoFormViewState extends State<MovimientoFormView> {
                   labelText: 'Base logística',
                   border: OutlineInputBorder(),
                 ),
+                isExpanded: true,
                 items: <DropdownMenuItem<String>>[
                   ..._bases.map(
                     (LogisticaBase base) => DropdownMenuItem<String>(
@@ -1033,14 +1106,6 @@ class _MovimientoFormViewState extends State<MovimientoFormView> {
                   return null;
                 },
               ),
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton(
-                onPressed: _openNuevaBase,
-                child: const Text('Nueva base'),
-              ),
-            ),
             const SizedBox(height: 8),
             SwitchListTile(
               title: const Text('¿Provincia?'),
@@ -1088,7 +1153,7 @@ class _MovimientoFormViewState extends State<MovimientoFormView> {
                     children: <Widget>[
                       Expanded(
                         child: Text(
-                          'Movimiento det',
+                          'Movdet',
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                       ),
@@ -1207,6 +1272,7 @@ class _MovimientoFormViewState extends State<MovimientoFormView> {
           labelText: 'Dirección de entrega',
           border: OutlineInputBorder(),
         ),
+        isExpanded: true,
         items: <DropdownMenuItem<String?>>[
           DropdownMenuItem<String?>(
             value: null,
@@ -1222,9 +1288,8 @@ class _MovimientoFormViewState extends State<MovimientoFormView> {
             (_ClienteDireccion dir) => DropdownMenuItem<String?>(
               value: dir.id,
               child: Text(
-                dir.referencia == null || dir.referencia!.trim().isEmpty
-                    ? dir.direccion
-                    : '${dir.direccion} · ${dir.referencia}',
+                dir.direccion,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ),
@@ -1253,6 +1318,7 @@ class _MovimientoFormViewState extends State<MovimientoFormView> {
           labelText: 'Número de contacto',
           border: OutlineInputBorder(),
         ),
+        isExpanded: true,
         items: <DropdownMenuItem<String?>>[
           DropdownMenuItem<String?>(
             value: null,
@@ -1267,7 +1333,10 @@ class _MovimientoFormViewState extends State<MovimientoFormView> {
           ..._clienteContactos.map(
             (_ClienteContacto contacto) => DropdownMenuItem<String?>(
               value: contacto.id,
-              child: Text(contacto.display),
+              child: Text(
+                contacto.display,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ),
           if (_clienteId != null)
@@ -1306,6 +1375,7 @@ class _MovimientoFormViewState extends State<MovimientoFormView> {
           labelText: 'Destino (provincia)',
           border: OutlineInputBorder(),
         ),
+        isExpanded: true,
         items: <DropdownMenuItem<String?>>[
           DropdownMenuItem<String?>(
             value: null,
@@ -1320,7 +1390,10 @@ class _MovimientoFormViewState extends State<MovimientoFormView> {
           ..._clienteDireccionesProvincia.map(
             (_ClienteDireccionProvincia dir) => DropdownMenuItem<String?>(
               value: dir.id,
-              child: Text(dir.display),
+              child: Text(
+                dir.display,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ),
           if (_clienteId != null)
@@ -1370,8 +1443,12 @@ class _ClienteContacto {
   final String numero;
   final String? nombre;
 
-  String get display =>
-      nombre == null || nombre!.trim().isEmpty ? numero : '$numero · $nombre';
+  String get display {
+    if (nombre != null && nombre!.trim().isNotEmpty) {
+      return nombre!.trim();
+    }
+    return numero;
+  }
 }
 
 class _ClienteDireccionProvincia {
@@ -1387,13 +1464,7 @@ class _ClienteDireccionProvincia {
   final String? destinatario;
   final String? dni;
 
-  String get display {
-    final StringBuffer buffer = StringBuffer(destino);
-    if (destinatario != null && destinatario!.trim().isNotEmpty) {
-      buffer.write(' · $destinatario');
-    }
-    return buffer.toString();
-  }
+  String get display => destino;
 }
 
 class _ProductoPedidoInfo {

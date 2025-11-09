@@ -15,6 +15,7 @@ import 'package:demo_pedidos/models/movimiento_pedido.dart';
 import 'package:demo_pedidos/models/movimiento_resumen.dart';
 import 'package:demo_pedidos/models/pago.dart';
 import 'package:demo_pedidos/models/pedido.dart';
+import 'package:demo_pedidos/models/pedido_detalle_snapshot.dart';
 import 'package:demo_pedidos/ui/page_scaffold.dart';
 import 'package:demo_pedidos/ui/standard_data_table.dart';
 import 'package:demo_pedidos/models/producto.dart';
@@ -324,6 +325,17 @@ class _PedidosDetalleViewState extends State<PedidosDetalleView> {
     if (pedido == null) {
       return;
     }
+    final List<PedidoDetalleSnapshot>? snapshots = _detalles.isEmpty
+        ? null
+        : _detalles
+            .map(
+              (_DetalleItem detalle) => PedidoDetalleSnapshot(
+                idProducto: detalle.detalle.idproducto,
+                cantidad: detalle.detalle.cantidad,
+                nombre: detalle.productoNombre,
+              ),
+            )
+            .toList();
     final bool? result = await Navigator.push<bool>(
       context,
       MaterialPageRoute<bool>(
@@ -333,6 +345,7 @@ class _PedidosDetalleViewState extends State<PedidosDetalleView> {
           movimiento: item?.base,
           detalles: item?.detalles,
           resumen: item?.resumen,
+          pedidoSnapshots: snapshots,
         ),
       ),
     );
@@ -984,7 +997,7 @@ class _PedidosDetalleViewState extends State<PedidosDetalleView> {
                       ),
                       const SizedBox(height: 16),
                       DetailInlineSection<_MovimientoItem>(
-                        title: 'Detalle Mov',
+                        title: 'Movimiento',
                         items: _movimientos,
                         columns: _movimientoColumns(),
                         onAdd: () => _openMovimientoForm(),

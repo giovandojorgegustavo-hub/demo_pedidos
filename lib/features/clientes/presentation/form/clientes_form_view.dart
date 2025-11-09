@@ -81,10 +81,26 @@ class _ClientesFormViewState extends State<ClientesFormView> {
       _isSaving = true;
     });
 
+    final String numeroInput = _numeroController.text.trim();
+    final bool numeroDuplicado = await Cliente.numeroExists(numeroInput);
+    if (numeroDuplicado) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Este número ya está registrado para otro cliente.'),
+          ),
+        );
+        setState(() {
+          _isSaving = false;
+        });
+      }
+      return;
+    }
+
     final Cliente payload = Cliente(
       id: '',
       nombre: _nombreController.text.trim(),
-      numero: _numeroController.text.trim(),
+      numero: numeroInput,
       canal: _canal,
       referidoPor: _canal == 'referido' ? _referidoPorId : null,
       registradoAt: DateTime.now(),

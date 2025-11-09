@@ -111,21 +111,37 @@ class _ModulesDashboardViewState extends State<ModulesDashboardView> {
             ..sort((ModuleDefinition a, ModuleDefinition b) =>
                 a.title.compareTo(b.title));
 
-          return Padding(
-            padding: const EdgeInsets.all(16),
-            child: GridView.count(
-              crossAxisCount:
-                  MediaQuery.of(context).size.width > 900 ? 3 : 1,
-              mainAxisSpacing: 16,
-              crossAxisSpacing: 16,
-              childAspectRatio: 5 / 3,
-              children: cards
-                  .map((ModuleDefinition module) => _ModuleCard(
-                        definition: module,
-                        onTap: () => _openModule(module.id),
-                      ))
-                  .toList(),
-            ),
+          return LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) {
+              final double width = constraints.maxWidth.isFinite
+                  ? constraints.maxWidth
+                  : MediaQuery.of(context).size.width;
+              final int columns = width >= 1100 ? 3 : 2;
+              final double aspectRatio = width >= 1100
+                  ? 5 / 3
+                  : width >= 600
+                      ? 4 / 3
+                      : 3 / 2;
+              return Padding(
+                padding: const EdgeInsets.all(16),
+                child: GridView.builder(
+                  itemCount: cards.length,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: columns,
+                    mainAxisSpacing: 16,
+                    crossAxisSpacing: 16,
+                    childAspectRatio: aspectRatio,
+                  ),
+                  itemBuilder: (BuildContext context, int index) {
+                    final ModuleDefinition module = cards[index];
+                    return _ModuleCard(
+                      definition: module,
+                      onTap: () => _openModule(module.id),
+                    );
+                  },
+                ),
+              );
+            },
           );
         },
       ),
@@ -154,7 +170,8 @@ class _ModuleCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Icon(definition.icon, size: 32, color: Theme.of(context).primaryColor),
+              Icon(definition.icon,
+                  size: 32, color: Theme.of(context).primaryColor),
               const SizedBox(height: 12),
               Text(
                 definition.title,
@@ -203,7 +220,8 @@ class _DashboardMessage extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            Icon(icon, size: 48, color: Theme.of(context).colorScheme.secondary),
+            Icon(icon,
+                size: 48, color: Theme.of(context).colorScheme.secondary),
             const SizedBox(height: 12),
             Text(
               title,

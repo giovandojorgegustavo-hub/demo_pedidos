@@ -313,7 +313,7 @@ grant usage on all sequences in schema public to authenticated;
 create table if not exists clientes (
   id uuid primary key default gen_random_uuid(),
   nombre text not null,
-  numero text not null,
+  numero text not null unique,
   canal text not null check (canal in ('telegram','referido','ads','qr')),
   referido_por uuid references clientes(id) on delete set null,
   registrado_at timestamptz default now(),

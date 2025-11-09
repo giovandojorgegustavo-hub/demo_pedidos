@@ -11,6 +11,7 @@ import 'package:demo_pedidos/models/movimiento_pedido.dart';
 import 'package:demo_pedidos/models/movimiento_resumen.dart';
 import 'package:demo_pedidos/models/pago.dart';
 import 'package:demo_pedidos/models/pedido.dart';
+import 'package:demo_pedidos/models/pedido_detalle_snapshot.dart';
 import 'package:demo_pedidos/models/producto.dart';
 import 'package:demo_pedidos/ui/form/inline_form_table.dart';
 import 'package:demo_pedidos/ui/standard_data_table.dart';
@@ -39,6 +40,7 @@ class _PedidosFormViewState extends State<PedidosFormView> {
   List<Pago> _pagos = <Pago>[];
   List<CargoCliente> _cargos = <CargoCliente>[];
   List<_MovimientoRow> _movimientos = <_MovimientoRow>[];
+  Map<String, double> _draftMovimientoTotals = <String, double>{};
   String? _pedidoId;
   DateTime? _registradoAt;
   String? _registradoPorId;
@@ -57,6 +59,7 @@ class _PedidosFormViewState extends State<PedidosFormView> {
   bool _isSaving = false;
 
   bool get _isEditing => widget.pedido != null;
+  bool get _isDraftContext => !_isEditing;
   bool get _hasPersistedPedido => _pedidoId != null;
   late final List<_InlineFormSectionConfigBase> _inlineSections =
       _buildInlineSections();
@@ -306,6 +309,9 @@ class _PedidosFormViewState extends State<PedidosFormView> {
       setState(() {
         _movimientos = movimientos;
         _isLoadingMovimientos = false;
+        _draftMovimientoTotals = _isDraftContext
+            ? _buildDraftMovimientoTotals(movimientos)
+            : <String, double>{};
       });
     } catch (error) {
       if (!mounted) {
@@ -313,6 +319,9 @@ class _PedidosFormViewState extends State<PedidosFormView> {
       }
       setState(() {
         _isLoadingMovimientos = false;
+        _draftMovimientoTotals = _isDraftContext
+            ? _buildDraftMovimientoTotals(_movimientos)
+            : <String, double>{};
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -325,7 +334,7 @@ class _PedidosFormViewState extends State<PedidosFormView> {
     return <_InlineFormSectionConfigBase>[
       _InlineFormSectionConfig<_DetalleRow>(
         key: 'detalles',
-        title: 'Detalle del pedido',
+        title: 'Detalle ped',
         helperText: 'Productos asociados al pedido.',
         emptyMessage: 'Sin productos agregados.',
         minTableWidth: 560,
@@ -364,7 +373,7 @@ class _PedidosFormViewState extends State<PedidosFormView> {
       ),
       _InlineFormSectionConfig<CargoCliente>(
         key: 'cargos',
-        title: 'Cargos al cliente',
+        title: 'Cargo',
         helperText: 'Ajustes aplicados al pedido.',
         emptyMessage: 'Sin cargos registrados.',
         minTableWidth: 560,
@@ -381,7 +390,7 @@ class _PedidosFormViewState extends State<PedidosFormView> {
       ),
       _InlineFormSectionConfig<_MovimientoRow>(
         key: 'movimientos',
-        title: 'Movimientos logísticos',
+        title: 'Movimiento',
         helperText: 'Seguimiento de entregas y envíos.',
         emptyMessage: 'Sin movimientos registrados.',
         minTableWidth: 560,
@@ -984,6 +993,17 @@ class _PedidosFormViewState extends State<PedidosFormView> {
   }
 
   Future<void> _openMovimientoForm({_MovimientoRow? row}) async {
+    final List<PedidoDetalleSnapshot> snapshots = _detalleRows
+        .map(
+          (_DetalleRow detalle) => PedidoDetalleSnapshot(
+            idProducto: detalle.detalle.idproducto,
+            cantidad: detalle.detalle.cantidad,
+            nombre: _productoNombre(detalle.detalle.idproducto),
+          ),
+        )
+        .toList(growable: false);
+    final Map<String, double>? draftBuffer =
+        _draftBufferForMovimiento(row: row);
     if (!await _ensurePedidoPersisted()) {
       return;
     }
@@ -996,6 +1016,8 @@ class _PedidosFormViewState extends State<PedidosFormView> {
           movimiento: row?.base,
           detalles: row?.detalles,
           resumen: row?.resumen,
+          pedidoSnapshots: snapshots.isEmpty ? null : snapshots,
+          pedidoDraftMovimientoConsumos: draftBuffer,
         ),
       ),
     );
@@ -1010,7 +1032,8 @@ class _PedidosFormViewState extends State<PedidosFormView> {
     }
     if (_selectedClienteId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Selecciona un cliente antes de continuar.')),
+        const SnackBar(
+            content: Text('Selecciona un cliente antes de continuar.')),
       );
       return false;
     }
@@ -1156,9 +1179,7 @@ class _PedidosFormViewState extends State<PedidosFormView> {
     if (_isSaving || _isPersistingDraft) {
       return;
     }
-    if (widget.pedido == null &&
-        _draftCreatedInSession &&
-        _pedidoId != null) {
+    if (widget.pedido == null && _draftCreatedInSession && _pedidoId != null) {
       try {
         await Pedido.deleteById(_pedidoId!);
       } catch (_) {
@@ -1169,6 +1190,44 @@ class _PedidosFormViewState extends State<PedidosFormView> {
       return;
     }
     Navigator.pop(context, false);
+  }
+
+  Map<String, double> _buildDraftMovimientoTotals(
+      List<_MovimientoRow> movimientos) {
+    if (movimientos.isEmpty) {
+      return <String, double>{};
+    }
+    final Map<String, double> totals = <String, double>{};
+    for (final _MovimientoRow row in movimientos) {
+      for (final DetalleMovimiento detalle in row.detalles) {
+        totals[detalle.idproducto] =
+            (totals[detalle.idproducto] ?? 0) + detalle.cantidad;
+      }
+    }
+    totals.removeWhere((String _, double value) => value <= 0);
+    return totals;
+  }
+
+  Map<String, double>? _draftBufferForMovimiento({_MovimientoRow? row}) {
+    if (!_isDraftContext || _draftMovimientoTotals.isEmpty) {
+      return null;
+    }
+    final Map<String, double> buffer =
+        Map<String, double>.from(_draftMovimientoTotals);
+    if (row != null) {
+      for (final DetalleMovimiento detalle in row.detalles) {
+        final String productoId = detalle.idproducto;
+        final double updated =
+            (buffer[productoId] ?? 0) - detalle.cantidad;
+        if (updated <= 0.0001) {
+          buffer.remove(productoId);
+        } else {
+          buffer[productoId] = updated;
+        }
+      }
+    }
+    buffer.removeWhere((String _, double value) => value <= 0.0001);
+    return buffer.isEmpty ? null : buffer;
   }
 
   @override

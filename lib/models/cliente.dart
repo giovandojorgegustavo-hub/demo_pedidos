@@ -125,4 +125,13 @@ class Cliente {
         })
         .eq('id', cliente.id);
   }
+
+  static Future<bool> numeroExists(String numero) async {
+    final Map<String, dynamic>? existing = await _supabase
+        .from('clientes')
+        .select('id')
+        .eq('numero', numero)
+        .maybeSingle();
+    return existing != null;
+  }
 }
