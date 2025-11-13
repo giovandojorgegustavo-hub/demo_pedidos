@@ -6,28 +6,31 @@ class Producto {
   const Producto({
     required this.id,
     required this.nombre,
-    required this.precio,
+    this.categoriaId,
+    this.categoriaNombre,
   });
 
   final String id;
   final String nombre;
-  final double precio;
+  final String? categoriaId;
+  final String? categoriaNombre;
 
   factory Producto.fromJson(Map<String, dynamic> json) {
-    final dynamic precioValue = json['precio'];
+    final Map<String, dynamic>? categoria =
+        json['categorias'] as Map<String, dynamic>?;
     return Producto(
       id: json['id'] as String,
       nombre: json['nombre'] as String,
-      precio: precioValue is num
-          ? precioValue.toDouble()
-          : double.tryParse('$precioValue') ?? 0,
+      categoriaId: json['idcategoria'] as String?,
+      categoriaNombre:
+          categoria == null ? null : categoria['nombre'] as String?,
     );
   }
 
   static Future<List<Producto>> getProductos() async {
     final List<dynamic> data = await _supabase
         .from('productos')
-        .select('id,nombre,precio')
+        .select('id,nombre,idcategoria,categorias(nombre)')
         .order('nombre', ascending: true);
     return data
         .map((dynamic item) => Producto.fromJson(item as Map<String, dynamic>))
@@ -39,7 +42,7 @@ class Producto {
         .from('productos')
         .insert(<String, dynamic>{
           'nombre': producto.nombre,
-          'precio': producto.precio,
+          'idcategoria': producto.categoriaId,
         })
         .select('id')
         .single();

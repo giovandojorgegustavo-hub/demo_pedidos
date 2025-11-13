@@ -396,6 +396,12 @@ class _ViajeDetalleViewState extends State<ViajeDetalleView> {
         ),
       ),
       TableColumnConfig<ViajeDetalle>(
+        label: 'Packing',
+        sortAccessor: (ViajeDetalle item) => item.packingNombre ?? '',
+        cellBuilder: (ViajeDetalle item) =>
+            Text(item.packingNombre ?? 'No asignado'),
+      ),
+      TableColumnConfig<ViajeDetalle>(
         label: 'Estado',
         sortAccessor: (ViajeDetalle item) => item.entregado ? 1 : 0,
         cellBuilder: (ViajeDetalle item) => item.entregado
@@ -456,6 +462,10 @@ class _SummaryCard extends StatelessWidget {
       _Field(
         label: 'Link',
         value: viaje.link.isNotEmpty ? viaje.link : '-',
+      ),
+      _Field(
+        label: 'Packing',
+        value: viaje.packingNombre ?? 'No asignado',
       ),
       _Field(
         label: 'Fecha de viaje',

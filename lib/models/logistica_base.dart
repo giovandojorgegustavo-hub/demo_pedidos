@@ -37,4 +37,23 @@ class LogisticaBase {
         .single();
     return inserted['id'] as String;
   }
+
+  static Future<void> update(LogisticaBase base) async {
+    await _supabase
+        .from('bases')
+        .update(<String, dynamic>{'nombre': base.nombre})
+        .eq('id', base.id);
+  }
+
+  static Future<LogisticaBase?> getById(String id) async {
+    final Map<String, dynamic>? row = await _supabase
+        .from('bases')
+        .select('id,nombre')
+        .eq('id', id)
+        .maybeSingle();
+    if (row == null) {
+      return null;
+    }
+    return LogisticaBase.fromJson(row);
+  }
 }

@@ -35,14 +35,25 @@ class CompraDetalle {
   factory CompraDetalle.fromJson(Map<String, dynamic> json) {
     final Map<String, dynamic>? productoJson =
         json['productos'] as Map<String, dynamic>?;
+    final dynamic productoNombreRaw = json['producto_nombre'];
+    String? productoNombre;
+    if (productoNombreRaw is String) {
+      productoNombre = productoNombreRaw;
+    } else if (productoNombreRaw is Map<String, dynamic>) {
+      final dynamic nombre = productoNombreRaw['nombre'];
+      if (nombre is String) {
+        productoNombre = nombre;
+      }
+    }
+    productoNombre ??= productoJson?['nombre'] as String?;
+
     return CompraDetalle(
       id: json['id'] as String?,
       idcompra: json['idcompra'] as String,
       idproducto: json['idproducto'] as String,
       cantidad: _toDouble(json['cantidad']),
       costoTotal: _toDouble(json['costo_total']),
-      productoNombre: json['producto_nombre'] as String? ??
-          productoJson?['nombre'] as String?,
+      productoNombre: productoNombre,
     );
   }
 
@@ -76,7 +87,9 @@ class CompraDetalle {
   static Future<List<CompraDetalle>> fetchByCompra(String compraId) async {
     final List<dynamic> rows = await _supabase
         .from('compras_detalle')
-        .select('id,idcompra,idproducto,cantidad,costo_total,producto_nombre:productos(nombre)')
+        .select(
+          'id,idcompra,idproducto,cantidad,costo_total,producto_nombre:productos(nombre)',
+        )
         .eq('idcompra', compraId)
         .order('registrado_at', ascending: false);
     return rows

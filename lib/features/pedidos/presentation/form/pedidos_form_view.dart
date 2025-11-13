@@ -405,8 +405,8 @@ class _PedidosFormViewState extends State<PedidosFormView> {
             state._loadMovimientos(),
         visiblePredicate: (_PedidosFormViewState state) => true,
         loadOnInitWhenEditing: true,
-        rowMaxHeightBuilder: (_PedidosFormViewState state,
-            List<_MovimientoRow> items) {
+        rowMaxHeightBuilder:
+            (_PedidosFormViewState state, List<_MovimientoRow> items) {
           final bool needsExtraHeight = items.any(
             (_MovimientoRow row) =>
                 row.base.esProvincia &&
@@ -493,8 +493,7 @@ class _PedidosFormViewState extends State<PedidosFormView> {
   String _productoNombre(String idProducto) {
     final Producto? producto = _productos.firstWhere(
       (Producto item) => item.id == idProducto,
-      orElse: () =>
-          Producto(id: idProducto, nombre: 'Producto desconocido', precio: 0),
+      orElse: () => Producto(id: idProducto, nombre: 'Producto desconocido'),
     );
     return producto?.nombre ?? 'Producto desconocido';
   }
@@ -1223,8 +1222,7 @@ class _PedidosFormViewState extends State<PedidosFormView> {
     if (row != null) {
       for (final DetalleMovimiento detalle in row.detalles) {
         final String productoId = detalle.idproducto;
-        final double updated =
-            (buffer[productoId] ?? 0) - detalle.cantidad;
+        final double updated = (buffer[productoId] ?? 0) - detalle.cantidad;
         if (updated <= 0.0001) {
           buffer.remove(productoId);
         } else {

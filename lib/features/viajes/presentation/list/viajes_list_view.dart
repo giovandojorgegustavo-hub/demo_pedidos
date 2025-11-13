@@ -171,7 +171,7 @@ class _ViajesListViewState extends State<ViajesListView> {
       },
       onRefresh: () async => _reload(),
       searchTextBuilder: (Viaje viaje) =>
-          '${viaje.nombreMotorizado} ${viaje.numWsp ?? ''} ${viaje.numLlamadas}',
+          '${viaje.nombreMotorizado} ${viaje.numWsp ?? ''} ${viaje.numLlamadas} ${viaje.packingNombre ?? ''}',
       searchPlaceholder: 'Buscar motorizado o contacto',
       emptyMessage: empty,
       minTableWidth: 720,
@@ -189,6 +189,12 @@ class _ViajesListViewState extends State<ViajesListView> {
         label: 'Motorizado',
         sortAccessor: (Viaje viaje) => viaje.nombreMotorizado,
         cellBuilder: (Viaje viaje) => Text(viaje.nombreMotorizado),
+      ),
+      TableColumnConfig<Viaje>(
+        label: 'Packing',
+        sortAccessor: (Viaje viaje) => viaje.packingNombre ?? '',
+        cellBuilder: (Viaje viaje) =>
+            Text(viaje.packingNombre ?? 'No asignado'),
       ),
       TableColumnConfig<Viaje>(
         label: 'WhatsApp',

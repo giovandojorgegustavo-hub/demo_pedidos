@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const List<String> kAllModules = <String>[
@@ -7,6 +9,10 @@ const List<String> kAllModules = <String>[
   'finanzas',
   'almacen',
   'administracion',
+  'contabilidad',
+  'asistencias',
+  'comunicaciones',
+  'reportes',
 ];
 
 /// Simple helper to fetch the modules that the logged-in user can access.
@@ -16,7 +22,33 @@ class ModuleAccessService {
 
   final SupabaseClient _client;
 
-  Future<Set<String>> loadModulesForCurrentUser() async {
+  static Set<String>? _cachedModules;
+  static Future<Set<String>>? _pendingLoad;
+
+  Future<Set<String>> loadModulesForCurrentUser({bool forceRefresh = false}) {
+    if (!forceRefresh && _cachedModules != null) {
+      return Future<Set<String>>.value(_cachedModules);
+    }
+    if (!forceRefresh && _pendingLoad != null) {
+      return _pendingLoad!;
+    }
+
+    final Completer<Set<String>> completer = Completer<Set<String>>();
+    _pendingLoad = completer.future;
+
+    _loadFromSupabase().then((Set<String> modules) {
+      _cachedModules = modules;
+      completer.complete(modules);
+    }).catchError((Object error, StackTrace stackTrace) {
+      completer.completeError(error, stackTrace);
+    }).whenComplete(() {
+      _pendingLoad = null;
+    });
+
+    return completer.future;
+  }
+
+  Future<Set<String>> _loadFromSupabase() async {
     final User? user = _client.auth.currentUser;
     if (user == null) {
       return <String>{};
@@ -28,7 +60,8 @@ class ModuleAccessService {
         .eq('user_id', user.id)
         .maybeSingle();
 
-    final String rol = (perfil?['rol'] as String?)?.trim().toLowerCase() ?? 'atencion';
+    final String rol =
+        (perfil?['rol'] as String?)?.trim().toLowerCase() ?? 'atencion';
 
     final List<dynamic> rows = await _client
         .from('role_modules')
@@ -47,5 +80,10 @@ class ModuleAccessService {
     }
 
     return modules;
+  }
+
+  static void clearCache() {
+    _cachedModules = null;
+    _pendingLoad = null;
   }
 }

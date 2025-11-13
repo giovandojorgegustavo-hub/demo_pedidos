@@ -32,13 +32,14 @@ class _ProveedoresListViewState extends State<ProveedoresListView> {
   }
 
   Future<void> _openForm({Proveedor? proveedor}) async {
-    final bool? changed = await Navigator.push<bool>(
+    final ProveedorFormResult? result =
+        await Navigator.push<ProveedorFormResult>(
       context,
-      MaterialPageRoute<bool>(
+      MaterialPageRoute<ProveedorFormResult>(
         builder: (_) => ProveedoresFormView(proveedor: proveedor),
       ),
     );
-    if (changed == true) {
+    if (result?.changed == true) {
       await _reload();
     }
   }

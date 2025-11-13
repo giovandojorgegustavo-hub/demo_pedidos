@@ -15,6 +15,10 @@ create extension if not exists "pgcrypto"; -- para gen_random_uuid()
 -- | finanzas        | cuentas, pagos, cargos, gastos                  |
 -- | almacen         | asignaciones y entregas en ruta                 |
 -- | administracion  | perfiles y catálogos internos                   |
+-- | contabilidad    | reportes contables mensuales                    |
+-- | asistencias     | slots, asignaciones y marcas                    |
+-- | comunicaciones  | incidencias y comunicaciones internas           |
+-- | reportes        | tableros operativos (ganancias, KPIs)           |
 
 -------------------------------------------------
 -- 1.1 Catálogos y tablas de seguridad
@@ -31,7 +35,11 @@ insert into security_modules (nombre, descripcion) values
   ('operaciones', 'Movimientos y destinos'),
   ('finanzas', 'Pagos y cargos'),
   ('almacen', 'Control de almacén y entregas'),
-  ('administracion', 'Gestión interna y perfiles')
+  ('administracion', 'Gestión interna y perfiles'),
+  ('contabilidad', 'Reportes contables'),
+  ('asistencias', 'Gestión de turnos y asistencias'),
+  ('comunicaciones', 'Incidencias y comunicaciones internas'),
+  ('reportes', 'Indicadores y resúmenes operativos')
 on conflict (nombre) do nothing;
 
 create table if not exists security_roles (
@@ -58,6 +66,10 @@ insert into role_modules (rol, modulo) values
   ('admin', 'finanzas'),
   ('admin', 'almacen'),
   ('admin', 'administracion'),
+  ('admin', 'contabilidad'),
+  ('admin', 'asistencias'),
+  ('admin', 'comunicaciones'),
+  ('admin', 'reportes'),
   ('despacho', 'almacen'),
   ('atencion', 'pedidos'),
   ('atencion', 'operaciones')
@@ -79,6 +91,7 @@ insert into security_resource_modules (relation_name, modulo) values
   ('categorias', 'bases'),
   ('productos', 'bases'),
   ('bases', 'bases'),
+  ('base_packings', 'bases'),
   ('pedidos', 'pedidos'),
   ('detallepedidos', 'pedidos'),
   ('movimientopedidos', 'operaciones'),
@@ -92,8 +105,23 @@ insert into security_resource_modules (relation_name, modulo) values
   ('pagos', 'finanzas'),
   ('gastos_operativos', 'finanzas'),
   ('cargos_cliente', 'finanzas'),
+  ('transferencias', 'operaciones'),
+  ('transferencias_detalle', 'operaciones'),
+  ('fabricaciones', 'operaciones'),
+  ('fabricacion_det_consumido', 'operaciones'),
+  ('fabricacion_det_fabricado', 'operaciones'),
+  ('ajustes', 'operaciones'),
+  ('ajustes_detalle', 'operaciones'),
   ('compras_movimientos', 'operaciones'),
-  ('compras_movimiento_detalle', 'operaciones')
+  ('compras_movimiento_detalle', 'operaciones'),
+  ('transferencias_gastos', 'operaciones'),
+  ('fabricaciones_gastos', 'operaciones'),
+  ('cuentas_contables', 'finanzas'),
+  ('movimientos_financieros', 'finanzas'),
+  ('incidentes', 'comunicaciones'),
+  ('incidentes_historial', 'comunicaciones'),
+  ('comunicaciones_internas', 'comunicaciones'),
+  ('comunicaciones_internas_respuestas', 'comunicaciones')
 on conflict (schema_name, relation_name) do nothing;
 
 create table if not exists perfiles (
@@ -378,7 +406,6 @@ create table if not exists categorias (
 create table if not exists productos (
   id uuid primary key default gen_random_uuid(),
   nombre text not null,
-  precio numeric(10,2) not null check (precio >= 0),
   idcategoria uuid references categorias(id) on delete set null,
   activo boolean default true,
   registrado_at timestamptz default now(),
@@ -398,6 +425,18 @@ create table if not exists bases (
   editado_at timestamptz,
   registrado_por uuid references auth.users(id),
   editado_por uuid references auth.users(id)
+);
+
+create table if not exists base_packings (
+  id uuid primary key default gen_random_uuid(),
+  idbase uuid not null references bases(id) on delete cascade,
+  nombre text not null,
+  activo boolean not null default true,
+  registrado_at timestamptz default now(),
+  editado_at timestamptz,
+  registrado_por uuid references auth.users(id),
+  editado_por uuid references auth.users(id),
+  unique (idbase, nombre)
 );
 
 
@@ -542,6 +581,7 @@ create table if not exists viajes (
   num_wsp text,            -- opcional
   num_pago text,
   link text not null,
+  idpacking uuid references base_packings(id),
   
   monto numeric(10,2) not null check (monto >= 0),
   registrado_at timestamptz default now(),
@@ -569,20 +609,6 @@ create table if not exists viajesdetalles (
 -------------------------------------------------
 -- TABLA: INCIDENTES (1 movimiento por incidente)
 -------------------------------------------------
-create table if not exists incidentes (
-  id uuid primary key default gen_random_uuid(),
-  idmovimiento uuid not null references movimientopedidos(id) on delete cascade,
-  categoria   text not null,   -- texto libre
-  observacion text,
-  culpa_cliente boolean default false,
-  culpa_base    boolean default false,
-  culpa_usuario boolean default false,
-  registrado_at timestamptz default now(),
-  editado_at timestamptz,
-  registrado_por uuid references auth.users(id),
-  editado_por uuid references auth.users(id)
-);
-
 -------------------------------------------------
 -- 5. MÓDULO FINANZAS (Pagos, Cuentas y Cargos)
 -------------------------------------------------
@@ -617,6 +643,7 @@ create table if not exists gastos_operativos (
   idpedido uuid not null references pedidos(id) on delete cascade,
   idcuenta uuid references cuentas_bancarias(id),
   tipo text not null,
+  idcuenta_contable uuid,
   descripcion text,
   monto numeric(10,2) not null check (monto >= 0),
   registrado_at timestamptz default now(),
@@ -748,6 +775,8 @@ create table if not exists ajustes_detalle (
   idajuste   uuid not null references ajustes(id) on delete cascade,
   idproducto uuid not null references productos(id),
   cantidad   numeric(12,4) not null check (cantidad <> 0),
+  cantidad_sistema numeric(12,4),
+  cantidad_real    numeric(12,4),
   registrado_at timestamptz default now(),
   editado_at     timestamptz,
   registrado_por uuid references auth.users(id),
@@ -780,6 +809,20 @@ create table if not exists transferencias_detalle (
   registrado_por uuid references auth.users(id),
   editado_por    uuid references auth.users(id),
   unique (idtransferencia, idproducto)
+);
+
+create table if not exists transferencias_gastos (
+  id uuid primary key default gen_random_uuid(),
+  idtransferencia uuid not null references transferencias(id) on delete cascade,
+  idcuenta uuid references cuentas_bancarias(id),
+  idcuenta_contable uuid,
+  concepto text not null,
+  monto numeric(12,2) not null check (monto >= 0),
+  observacion text,
+  registrado_at timestamptz default now(),
+  editado_at timestamptz,
+  registrado_por uuid references auth.users(id),
+  editado_por uuid references auth.users(id)
 );
 
 -- ============================================
@@ -819,9 +862,116 @@ create table if not exists fabricacion_det_fabricado (
   unique (idfabricacion, idproducto)
 );
 
+create table if not exists fabricaciones_gastos (
+  id uuid primary key default gen_random_uuid(),
+  idfabricacion uuid not null references fabricaciones(id) on delete cascade,
+  idcuenta uuid references cuentas_bancarias(id),
+  idcuenta_contable uuid,
+  concepto text not null,
+  monto numeric(12,2) not null check (monto >= 0),
+  observacion text,
+  registrado_at timestamptz default now(),
+  editado_at timestamptz,
+  registrado_por uuid references auth.users(id),
+  editado_por uuid references auth.users(id)
+);
 
 
 
+
+-------------------------------------------------
+-- 7. MÓDULO 3 · FINANZAS / CONTABILIDAD
+-------------------------------------------------
+
+-- ============================================
+-- 7.1 Catálogo de cuentas contables
+-- ============================================
+create table if not exists cuentas_contables (
+  id uuid primary key default gen_random_uuid(),
+  codigo text not null unique,
+  nombre text not null,
+  tipo text not null check (tipo in ('activo','pasivo','patrimonio','ingreso','gasto')),
+  parent_id uuid references cuentas_contables(id),
+  es_terminal boolean default true,
+  registrado_at timestamptz default now(),
+  editado_at timestamptz,
+  registrado_por uuid references auth.users(id),
+  editado_por uuid references auth.users(id)
+);
+
+-- ============================================
+-- 7.2 Movimientos financieros manuales
+-- ============================================
+create table if not exists movimientos_financieros (
+  id uuid primary key default gen_random_uuid(),
+  tipo text not null check (tipo in ('ingreso','gasto','ajuste','transferencia')),
+  descripcion text not null,
+  monto numeric(14,2) not null check (monto > 0),
+  idcuenta_origen uuid references cuentas_bancarias(id),
+  idcuenta_destino uuid references cuentas_bancarias(id),
+  idcuenta_contable uuid references cuentas_contables(id),
+  observacion text,
+  registrado_at timestamptz default now(),
+  editado_at timestamptz,
+  registrado_por uuid references auth.users(id),
+  editado_por uuid references auth.users(id),
+  check (
+    (tipo = 'transferencia' and idcuenta_origen is not null and idcuenta_destino is not null and idcuenta_origen <> idcuenta_destino)
+    or (tipo <> 'transferencia')
+  ),
+  check (
+    (tipo in ('ingreso','gasto','ajuste') and idcuenta_contable is not null)
+    or (tipo = 'transferencia' and idcuenta_contable is null)
+  )
+);
+
+alter table public.transferencias_gastos
+  add constraint transferencias_gastos_cuenta_contable_fk
+  foreign key (idcuenta_contable) references public.cuentas_contables(id);
+
+alter table public.fabricaciones_gastos
+  add constraint fabricaciones_gastos_cuenta_contable_fk
+  foreign key (idcuenta_contable) references public.cuentas_contables(id);
+
+alter table public.gastos_operativos
+  add constraint gastos_operativos_cuenta_contable_fk
+  foreign key (idcuenta_contable) references public.cuentas_contables(id);
+
+-------------------------------------------------
+-- VISTA AUXILIAR · COSTO PROMEDIO POR PRODUCTO
+-------------------------------------------------
+
+create or replace view public.v_productos_costo_promedio as
+select
+  cd.idproducto,
+  sum(cd.cantidad)::numeric(18,6) as cantidad_total,
+  sum(cd.costo_total)::numeric(18,6) as valor_total,
+  case
+    when sum(cd.cantidad) = 0 then 0
+    else (sum(cd.costo_total) / nullif(sum(cd.cantidad), 0))::numeric(18,6)
+  end as costo_promedio
+from public.compras_detalle cd
+group by cd.idproducto;
+
+-------------------------------------------------
+-- FUNCIONES · MÓDULO 2 (Costos promedio)
+-------------------------------------------------
+
+create or replace function public.fn_producto_costo_promedio(p_idproducto uuid)
+returns numeric
+language sql
+stable
+set search_path = public
+as $$
+  select coalesce(
+    (
+      select v.costo_promedio
+      from public.v_productos_costo_promedio v
+      where v.idproducto = p_idproducto
+    ),
+    0
+  );
+$$;
 
 -------------------------------------------------
 -- FUNCIONES / TRIGGERS PARA DETALLEPEDIDOS
@@ -908,7 +1058,7 @@ execute function detallepedidos_calcular_total();
 -------------------------------------------------
 
 -------------------------------------------------
--- 7. MÓDULO REPORTES / CAPA DE CONSULTA
+-- 8. MÓDULO REPORTES / CAPA DE CONSULTA
 -------------------------------------------------
 
 -------------------------------------------------
@@ -1302,6 +1452,9 @@ select
   v.num_wsp,
   v.num_pago,
   v.link,
+  v.idpacking,
+  bp.nombre as packing_nombre,
+  bp.idbase as packing_base_id,
   v.monto,
   v.registrado_at,
   v.editado_at,
@@ -1320,7 +1473,8 @@ select
     else 1
   end                              as estado_codigo
 from public.viajes v
-left join stats s on s.idviaje = v.id;
+left join stats s on s.idviaje = v.id
+left join public.base_packings bp on bp.id = v.idpacking;
 
 -- 7.9 Viajes · Detalle general
 -------------------------------------------------
@@ -1335,6 +1489,7 @@ select
   vd.editado_por,
   vd.llegada_at,
   m.es_provincia,
+  m.idbase                             as base_id,
   b.nombre                             as base_nombre,
   c.nombre                             as cliente_nombre,
   c.numero                             as cliente_numero,
@@ -1349,8 +1504,11 @@ select
   end                                  as direccion_referencia,
   dp.lugar_llegada                     as provincia_destino,
   dp.nombre_completo                   as provincia_destinatario,
-  dp.dni                               as provincia_dni
+  dp.dni                               as provincia_dni,
+  v.idpacking,
+  bp.nombre                            as packing_nombre
 from public.viajesdetalles vd
+join public.viajes v on v.id = vd.idviaje
 join public.movimientopedidos m on m.id = vd.idmovimiento
 left join public.bases b on b.id = m.idbase
 left join public.pedidos p on p.id = m.idpedido
@@ -1359,7 +1517,8 @@ left join public.mov_destino_lima     mdl on mdl.idmovimiento = m.id
 left join public.direccion            d   on d.id = mdl.iddireccion
 left join public.numrecibe            nr  on nr.id = mdl.idnumrecibe
 left join public.mov_destino_provincia mdp on mdp.idmovimiento = m.id
-left join public.direccion_provincia  dp  on dp.id = mdp.iddir_provincia;
+left join public.direccion_provincia  dp  on dp.id = mdp.iddir_provincia
+left join public.base_packings        bp  on bp.id = v.idpacking;
 
 -------------------------------------------------
 -- VISTAS · MÓDULO 2 (Operaciones / Inventario)
@@ -1456,13 +1615,132 @@ select
   b.nombre as base_nombre,
   m.idproducto,
   p.nombre as producto_nombre,
-  sum(m.cantidad)::numeric(14,4) as cantidad
+  sum(m.cantidad)::numeric(14,4) as cantidad,
+  public.fn_producto_costo_promedio(m.idproducto)::numeric(18,6) as costo_unitario,
+  (
+    sum(m.cantidad) * public.fn_producto_costo_promedio(m.idproducto)
+  )::numeric(18,4) as valor_total
 from public.v_kardex_operativo m
 left join public.productos p on p.id = m.idproducto
 left join public.bases b on b.id = m.idbase
 group by m.idbase, b.nombre, m.idproducto, p.nombre;
 
--------------------------------------------------
+create or replace view public.v_transferencias_gastos as
+select
+  g.id,
+  g.idtransferencia,
+  t.idbase_origen,
+  bo.nombre as base_origen_nombre,
+  t.idbase_destino,
+  bd.nombre as base_destino_nombre,
+  g.concepto,
+  g.monto,
+  g.idcuenta,
+  g.idcuenta_contable,
+  cb.nombre as cuenta_nombre,
+  g.observacion,
+  g.registrado_at,
+  g.registrado_por
+from public.transferencias_gastos g
+join public.transferencias t on t.id = g.idtransferencia
+left join public.bases bo on bo.id = t.idbase_origen
+left join public.bases bd on bd.id = t.idbase_destino
+left join public.cuentas_bancarias cb on cb.id = g.idcuenta;
+
+create or replace view public.v_fabricaciones_gastos as
+select
+  g.id,
+  g.idfabricacion,
+  f.idbase,
+  b.nombre as base_nombre,
+  g.concepto,
+  g.monto,
+  g.idcuenta,
+  g.idcuenta_contable,
+  cb.nombre as cuenta_nombre,
+  g.observacion,
+  g.registrado_at,
+  g.registrado_por
+from public.fabricaciones_gastos g
+join public.fabricaciones f on f.id = g.idfabricacion
+left join public.bases b on b.id = f.idbase
+left join public.cuentas_bancarias cb on cb.id = g.idcuenta;
+
+-- ============================================
+-- 6.6 Ajustes · Vista de costos
+-- ============================================
+create or replace view public.v_ajustes_costos as
+select
+  ad.id,
+  ad.idajuste,
+  a.idbase,
+  b.nombre as base_nombre,
+  ad.idproducto,
+  p.nombre as producto_nombre,
+  ad.cantidad_sistema,
+  ad.cantidad_real,
+  ad.cantidad,
+  coalesce(public.fn_producto_costo_promedio(ad.idproducto), 0)::numeric(14,4) as costo_unitario,
+  (
+    ad.cantidad * coalesce(public.fn_producto_costo_promedio(ad.idproducto), 0)
+  )::numeric(14,2) as costo_ajuste,
+  ad.registrado_at,
+  ad.registrado_por
+from public.ajustes_detalle ad
+join public.ajustes a on a.id = ad.idajuste
+left join public.bases b on b.id = a.idbase
+left join public.productos p on p.id = ad.idproducto;
+
+create or replace view public.v_operaciones_gastos_union as
+select
+  'transferencia'::text as origen,
+  g.idtransferencia as idoperativo,
+  t.idbase_origen as idbase,
+  bo.nombre as base_nombre,
+  null::uuid as idproducto,
+  null::text as producto_nombre,
+  coalesce(g.observacion, g.concepto) as descripcion,
+  g.monto,
+  g.idcuenta,
+  g.idcuenta_contable,
+  g.registrado_at,
+  g.registrado_por
+from public.transferencias_gastos g
+join public.transferencias t on t.id = g.idtransferencia
+left join public.bases bo on bo.id = t.idbase_origen
+union all
+select
+  'fabricacion'::text as origen,
+  g.idfabricacion as idoperativo,
+  f.idbase,
+  b.nombre as base_nombre,
+  null::uuid as idproducto,
+  null::text as producto_nombre,
+  coalesce(g.observacion, g.concepto) as descripcion,
+  g.monto,
+  g.idcuenta,
+  g.idcuenta_contable,
+  g.registrado_at,
+  g.registrado_por
+from public.fabricaciones_gastos g
+join public.fabricaciones f on f.id = g.idfabricacion
+left join public.bases b on b.id = f.idbase
+union all
+select
+  'ajuste'::text as origen,
+  ac.idajuste as idoperativo,
+  ac.idbase,
+  ac.base_nombre,
+  ac.idproducto,
+  ac.producto_nombre,
+  concat('Ajuste ', ac.producto_nombre) as descripcion,
+  ac.costo_ajuste as monto,
+  null::uuid as idcuenta,
+  null::uuid as idcuenta_contable,
+  ac.registrado_at,
+  ac.registrado_por
+from public.v_ajustes_costos ac;
+
 -- 7.10 Compras · Vistas operativas
 -------------------------------------------------
 
@@ -1574,3 +1852,573 @@ left join lateral (
 ) baseinfo on true
 left join public.v_compras_estado_pago ep on ep.compra_id = c.id
 left join public.v_compras_estado_entrega ee on ee.compra_id = c.id;
+
+-------------------------------------------------
+-- VISTAS · MÓDULO 3 (Finanzas / Caja)
+-------------------------------------------------
+
+create or replace view public.v_finanzas_pagos_pedidos as
+select
+  pg.id,
+  pg.idpedido,
+  ped.registrado_at as pedido_registrado_at,
+  cli.nombre as cliente_nombre,
+  pg.monto,
+  pg.fechapago,
+  pg.idcuenta,
+  cb.nombre as cuenta_nombre,
+  pg.registrado_at,
+  pg.registrado_por
+from public.pagos pg
+left join public.pedidos ped on ped.id = pg.idpedido
+left join public.clientes cli on cli.id = ped.idcliente
+left join public.cuentas_bancarias cb on cb.id = pg.idcuenta;
+
+create or replace view public.v_finanzas_gastos_pedidos as
+select
+  go.id,
+  go.idpedido,
+  cli.nombre as cliente_nombre,
+  p.registrado_at as pedido_registrado_at,
+  go.tipo,
+  go.descripcion,
+  go.monto,
+  go.idcuenta,
+  cb.nombre as cuenta_nombre,
+  go.idcuenta_contable,
+  cc.codigo as cuenta_contable_codigo,
+  cc.nombre as cuenta_contable_nombre,
+  go.registrado_at,
+  go.registrado_por
+from public.gastos_operativos go
+join public.pedidos p on p.id = go.idpedido
+left join public.clientes cli on cli.id = p.idcliente
+left join public.cuentas_bancarias cb on cb.id = go.idcuenta
+left join public.cuentas_contables cc on cc.id = go.idcuenta_contable;
+
+create or replace view public.v_finanzas_movimientos_ingresos_gastos as
+select
+  mf.id,
+  mf.tipo,
+  mf.descripcion,
+  case when mf.tipo in ('gasto','ajuste') then -mf.monto else mf.monto end as monto,
+  mf.idcuenta_contable,
+  cc.codigo as cuenta_contable_codigo,
+  cc.nombre as cuenta_contable_nombre,
+  mf.idcuenta_origen,
+  mf.idcuenta_destino,
+  coalesce(cb_dest.nombre, cb_orig.nombre) as cuenta_bancaria_nombre,
+  mf.registrado_at,
+  mf.registrado_por
+from public.movimientos_financieros mf
+left join public.cuentas_contables cc on cc.id = mf.idcuenta_contable
+left join public.cuentas_bancarias cb_dest on cb_dest.id = mf.idcuenta_destino
+left join public.cuentas_bancarias cb_orig on cb_orig.id = mf.idcuenta_origen
+where mf.tipo in ('ingreso','gasto','ajuste')
+union all
+select
+  gen_random_uuid() as id,
+  'gasto'::text as tipo,
+  og.descripcion,
+  -og.monto as monto,
+  og.idcuenta_contable,
+  cc.codigo as cuenta_contable_codigo,
+  cc.nombre as cuenta_contable_nombre,
+  og.idcuenta as idcuenta_origen,
+  null::uuid as idcuenta_destino,
+  cb.nombre as cuenta_bancaria_nombre,
+  og.registrado_at,
+  og.registrado_por
+from public.v_operaciones_gastos_union og
+left join public.cuentas_contables cc on cc.id = og.idcuenta_contable
+left join public.cuentas_bancarias cb on cb.id = og.idcuenta;
+
+create or replace view public.v_finanzas_ajustes_dinero as
+select
+  mf.id,
+  mf.descripcion,
+  mf.monto,
+  mf.idcuenta_contable,
+  cc.codigo as cuenta_contable_codigo,
+  cc.nombre as cuenta_contable_nombre,
+  coalesce(cb_dest.nombre, cb_orig.nombre) as cuenta_bancaria_nombre,
+  mf.observacion,
+  mf.registrado_at,
+  mf.registrado_por
+from public.movimientos_financieros mf
+left join public.cuentas_contables cc on cc.id = mf.idcuenta_contable
+left join public.cuentas_bancarias cb_dest on cb_dest.id = mf.idcuenta_destino
+left join public.cuentas_bancarias cb_orig on cb_orig.id = mf.idcuenta_origen
+where mf.tipo = 'ajuste';
+
+create or replace view public.v_finanzas_transferencias_dinero as
+select
+  mf.id,
+  mf.descripcion,
+  mf.monto,
+  mf.idcuenta_origen,
+  cb_orig.nombre as cuenta_origen_nombre,
+  mf.idcuenta_destino,
+  cb_dest.nombre as cuenta_destino_nombre,
+  mf.observacion,
+  mf.registrado_at,
+  mf.registrado_por
+from public.movimientos_financieros mf
+left join public.cuentas_bancarias cb_dest on cb_dest.id = mf.idcuenta_destino
+left join public.cuentas_bancarias cb_orig on cb_orig.id = mf.idcuenta_origen
+where mf.tipo = 'transferencia';
+
+create or replace view public.v_finanzas_balance_mensual as
+select
+  date_trunc('month', mv.registrado_at) as periodo,
+  mv.idcuenta_contable,
+  mv.cuenta_contable_codigo,
+  mv.cuenta_contable_nombre,
+  cc.tipo,
+  sum(mv.monto)::numeric(14,2) as saldo
+from (
+  select
+    id,
+    descripcion,
+    monto,
+    idcuenta_contable,
+    cuenta_contable_codigo,
+    cuenta_contable_nombre,
+    registrado_at,
+    registrado_por
+  from public.v_finanzas_movimientos_ingresos_gastos
+  where idcuenta_contable is not null
+) mv
+join public.cuentas_contables cc on cc.id = mv.idcuenta_contable
+group by periodo, mv.idcuenta_contable, mv.cuenta_contable_codigo, mv.cuenta_contable_nombre, cc.tipo;
+
+create or replace view public.v_finanzas_estado_resultados as
+select
+  periodo,
+  sum(case when tipo = 'ingreso' then saldo else 0 end) as total_ingresos,
+  sum(case when tipo = 'gasto' then -saldo else 0 end) as total_gastos,
+  sum(case when tipo = 'ingreso' then saldo else 0 end) +
+  sum(case when tipo = 'gasto' then saldo else 0 end) as resultado
+from public.v_finanzas_balance_mensual
+where tipo in ('ingreso','gasto')
+group by periodo;
+
+create or replace view public.v_finanzas_balance_general as
+select
+  periodo,
+  tipo,
+  sum(saldo)::numeric(14,2) as saldo
+from public.v_finanzas_balance_mensual
+where tipo in ('activo','pasivo','patrimonio')
+group by periodo, tipo;
+
+-------------------------------------------------
+-- 8. MÓDULO 5 · ASISTENCIAS
+-------------------------------------------------
+
+create table if not exists asistencias_slots (
+  id uuid primary key default gen_random_uuid(),
+  nombre text not null,
+  hora time not null,
+  descripcion text,
+  activo boolean not null default true,
+  registrado_at timestamptz default now(),
+  editado_at timestamptz,
+  registrado_por uuid references auth.users(id),
+  editado_por uuid references auth.users(id)
+);
+
+create table if not exists asistencias_base_slots (
+  id uuid primary key default gen_random_uuid(),
+  idbase uuid not null references bases(id) on delete cascade,
+  idslot uuid not null references asistencias_slots(id) on delete cascade,
+  dias_semana text[] not null default array['lunes','martes','miércoles','jueves','viernes','sábado','domingo'],
+  activo boolean not null default true,
+  registrado_at timestamptz default now(),
+  editado_at timestamptz,
+  registrado_por uuid references auth.users(id),
+  editado_por uuid references auth.users(id),
+  unique (idbase, idslot)
+);
+
+create table if not exists asistencias_registro (
+  id uuid primary key default gen_random_uuid(),
+  idbase uuid not null references bases(id) on delete cascade,
+  idslot uuid not null references asistencias_slots(id) on delete cascade,
+  fecha date not null,
+  estado text not null default 'falta' check (estado in ('falta','asistio','justificado')),
+  observacion text,
+  registrado_at timestamptz default now(),
+  editado_at timestamptz,
+  registrado_por uuid references auth.users(id),
+  editado_por uuid references auth.users(id),
+  unique (idbase, idslot, fecha)
+);
+
+create or replace view public.v_asistencias_slots as
+select
+  s.id,
+  s.nombre,
+  s.hora,
+  s.descripcion,
+  s.activo,
+  s.registrado_at,
+  s.registrado_por,
+  s.editado_at,
+  s.editado_por
+from asistencias_slots s;
+
+create or replace view public.v_asistencias_base_slots as
+select
+  abs.id,
+  abs.idbase,
+  b.nombre as base_nombre,
+  abs.idslot,
+  s.nombre as slot_nombre,
+  s.hora as slot_hora,
+  abs.dias_semana,
+  abs.activo,
+  abs.registrado_at,
+  abs.registrado_por,
+  abs.editado_at,
+  abs.editado_por
+from asistencias_base_slots abs
+join bases b on b.id = abs.idbase
+join asistencias_slots s on s.id = abs.idslot;
+
+create or replace view public.v_asistencias_pendientes as
+select
+  abs.idbase,
+  b.nombre as base_nombre,
+  abs.idslot,
+  s.nombre as slot_nombre,
+  s.hora as slot_hora,
+  gs.fecha,
+  coalesce(ar.estado, 'falta'::text) as estado,
+  ar.id as registro_id
+from asistencias_base_slots abs
+join bases b on b.id = abs.idbase
+join asistencias_slots s on s.id = abs.idslot
+cross join lateral (
+  -- Genera un rango de fechas alrededor de la fecha actual (ej. +/- 7 días)
+  select generate_series(current_date - interval '7 days', current_date + interval '7 days', interval '1 day')::date as fecha
+) gs
+left join asistencias_registro ar
+  on ar.idbase = abs.idbase
+ and ar.idslot = abs.idslot
+ and ar.fecha = gs.fecha
+where abs.activo = true
+  and s.activo = true
+  and to_char(gs.fecha, 'TMDay') ilike any (array(
+    select trim(dia)::text
+    from unnest(abs.dias_semana) as dia
+  ));
+
+create or replace view public.v_asistencias_historial as
+select
+  ar.id,
+  ar.idbase,
+  b.nombre as base_nombre,
+  ar.idslot,
+  s.nombre as slot_nombre,
+  s.hora as slot_hora,
+  ar.fecha,
+  ar.estado,
+  ar.observacion,
+  ar.registrado_at,
+  ar.registrado_por,
+  ar.editado_at,
+  ar.editado_por
+from asistencias_registro ar
+join bases b on b.id = ar.idbase
+join asistencias_slots s on s.id = ar.idslot;
+
+-------------------------------------------------
+-- 9. MÓDULO 6 · COMUNICACIONES / INCIDENCIAS
+-------------------------------------------------
+
+create table if not exists incidentes (
+  id uuid primary key default gen_random_uuid(),
+  titulo text not null,
+  descripcion text,
+  categoria text,
+  severidad text not null default 'media' check (severidad in ('baja','media','alta','critica')),
+  estado text not null default 'abierto' check (estado in ('abierto','investigacion','resuelto','cerrado')),
+  responsabilidad text check (responsabilidad in ('cliente','base','operador','externo')),
+  idpedido uuid references pedidos(id) on delete set null,
+  idmovimiento uuid references movimientopedidos(id) on delete set null,
+  idcliente uuid references clientes(id) on delete set null,
+  idbase uuid references bases(id) on delete set null,
+  idusuario uuid references auth.users(id) on delete set null,
+  registrado_at timestamptz default now(),
+  registrado_por uuid references auth.users(id),
+  editado_at timestamptz,
+  editado_por uuid references auth.users(id)
+);
+
+create table if not exists incidentes_historial (
+  id uuid primary key default gen_random_uuid(),
+  idincidente uuid not null references incidentes(id) on delete cascade,
+  comentario text,
+  estado text,
+  registrado_at timestamptz default now(),
+  registrado_por uuid references auth.users(id)
+);
+
+create table if not exists comunicaciones_internas (
+  id uuid primary key default gen_random_uuid(),
+  idbase uuid references bases(id) on delete set null,
+  asunto text not null,
+  mensaje text not null,
+  prioridad text not null default 'media' check (prioridad in ('baja','media','alta')),
+  estado text not null default 'pendiente' check (estado in ('pendiente','en_proceso','atendido','cerrado')),
+  registrado_at timestamptz default now(),
+  registrado_por uuid references auth.users(id),
+  editado_at timestamptz,
+  editado_por uuid references auth.users(id)
+);
+
+create table if not exists comunicaciones_internas_respuestas (
+  id uuid primary key default gen_random_uuid(),
+  idcomunicacion uuid not null references comunicaciones_internas(id) on delete cascade,
+  mensaje text not null,
+  registrado_at timestamptz default now(),
+  registrado_por uuid references auth.users(id)
+);
+
+create or replace view public.v_incidencias_general as
+select
+  i.id,
+  i.titulo,
+  i.descripcion,
+  i.categoria,
+  i.severidad,
+  i.estado,
+  i.responsabilidad,
+  i.idpedido,
+  p.idcliente,
+  cli.nombre as cliente_nombre,
+  i.idmovimiento,
+  i.idbase,
+  b.nombre as base_nombre,
+  i.idusuario,
+  i.registrado_at,
+  i.registrado_por,
+  i.editado_at,
+  i.editado_por
+from incidentes i
+left join pedidos p on p.id = i.idpedido
+left join clientes cli on cli.id = coalesce(i.idcliente, p.idcliente)
+left join bases b on b.id = i.idbase;
+
+create or replace view public.v_incidencias_historial as
+select
+  h.id,
+  h.idincidente,
+  h.comentario,
+  h.estado,
+  h.registrado_at,
+  h.registrado_por,
+  i.titulo,
+  i.estado as estado_actual
+from incidentes_historial h
+join incidentes i on i.id = h.idincidente;
+
+create or replace view public.v_comunicaciones_internas as
+select
+  c.id,
+  c.idbase,
+  b.nombre as base_nombre,
+  c.asunto,
+  c.mensaje,
+  c.prioridad,
+  c.estado,
+  c.registrado_at,
+  c.registrado_por,
+  c.editado_at,
+  c.editado_por
+from comunicaciones_internas c
+left join bases b on b.id = c.idbase;
+
+create or replace view public.v_comunicaciones_respuestas as
+select
+  r.id,
+  r.idcomunicacion,
+  c.asunto,
+  r.mensaje,
+  r.registrado_at,
+  r.registrado_por
+from comunicaciones_internas_respuestas r
+join comunicaciones_internas c on c.id = r.idcomunicacion;
+
+create or replace function public.fn_asistencias_generar_registros(p_fecha date default current_date)
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_inserted integer;
+begin
+  insert into public.asistencias_registro (idbase, idslot, fecha, estado, registrado_por, editado_por)
+  select
+    abs.idbase,
+    abs.idslot,
+    p_fecha,
+    'falta',
+    coalesce(auth.uid(), abs.registrado_por),
+    coalesce(auth.uid(), abs.registrado_por)
+  from public.asistencias_base_slots abs
+  join public.asistencias_slots s on s.id = abs.idslot
+  where abs.activo = true
+    and s.activo = true
+    and to_char(p_fecha, 'TMDay') ilike any (
+      array(select trim(dia)::text from unnest(abs.dias_semana) as dia)
+    )
+    and not exists (
+      select 1
+      from public.asistencias_registro ar
+      where ar.idbase = abs.idbase
+        and ar.idslot = abs.idslot
+        and ar.fecha = p_fecha
+    );
+
+  get diagnostics v_inserted = row_count;
+  return coalesce(v_inserted, 0);
+end;
+$$;
+
+-------------------------------------------------
+-- 10. MÓDULO 7 · REPORTES / GANANCIAS
+-------------------------------------------------
+
+create or replace view public.v_reportes_pedidos_detalle_costos as
+select
+  p.id as pedido_id,
+  p.idcliente,
+  cli.nombre as cliente_nombre,
+  p.registrado_at,
+  dp.idproducto,
+  dp.cantidad,
+  dp.precioventa,
+  case
+    when dp.cantidad = 0 then 0
+    else (dp.precioventa / dp.cantidad)
+  end::numeric(18,6) as precio_unitario,
+  coalesce(public.fn_producto_costo_promedio(dp.idproducto), 0)::numeric(18,6)
+    as costo_unitario
+from public.pedidos p
+join public.detallepedidos dp on dp.idpedido = p.id
+left join public.clientes cli on cli.id = p.idcliente;
+
+create or replace view public.v_reportes_ganancia_diaria as
+select
+  date_trunc('day', d.registrado_at)::date as fecha,
+  count(distinct d.pedido_id)::bigint as pedidos,
+  sum(d.precioventa)::numeric(14,2) as total_venta,
+  sum(d.cantidad * d.costo_unitario)::numeric(14,2) as total_costo,
+  (
+    sum(d.precioventa) - sum(d.cantidad * d.costo_unitario)
+  )::numeric(14,2) as ganancia,
+  case
+    when sum(d.precioventa) = 0 then 0
+    else (
+      (sum(d.precioventa) - sum(d.cantidad * d.costo_unitario))
+      / nullif(sum(d.precioventa), 0)
+    ) * 100
+  end::numeric(9,4) as margen_porcentaje
+from public.v_reportes_pedidos_detalle_costos d
+group by fecha
+order by fecha desc;
+
+create or replace view public.v_reportes_ganancia_mensual as
+select
+  date_trunc('month', d.registrado_at)::date as periodo,
+  count(distinct d.pedido_id)::bigint as pedidos,
+  sum(d.precioventa)::numeric(14,2) as total_venta,
+  sum(d.cantidad * d.costo_unitario)::numeric(14,2) as total_costo,
+  (
+    sum(d.precioventa) - sum(d.cantidad * d.costo_unitario)
+  )::numeric(14,2) as ganancia,
+  case
+    when sum(d.precioventa) = 0 then 0
+    else (
+      (sum(d.precioventa) - sum(d.cantidad * d.costo_unitario))
+      / nullif(sum(d.precioventa), 0)
+    ) * 100
+  end::numeric(9,4) as margen_porcentaje
+from public.v_reportes_pedidos_detalle_costos d
+group by periodo
+order by periodo desc;
+
+create or replace view public.v_reportes_ganancia_mensual_clientes as
+select
+  date_trunc('month', d.registrado_at)::date as periodo,
+  d.idcliente,
+  d.cliente_nombre,
+  count(distinct d.pedido_id)::bigint as pedidos,
+  sum(d.precioventa)::numeric(14,2) as total_venta,
+  sum(d.cantidad * d.costo_unitario)::numeric(14,2) as total_costo,
+  (
+    sum(d.precioventa) - sum(d.cantidad * d.costo_unitario)
+  )::numeric(14,2) as ganancia,
+  case
+    when sum(d.precioventa) = 0 then 0
+    else (
+      (sum(d.precioventa) - sum(d.cantidad * d.costo_unitario))
+      / nullif(sum(d.precioventa), 0)
+    ) * 100
+  end::numeric(9,4) as margen_porcentaje
+from public.v_reportes_pedidos_detalle_costos d
+group by periodo, d.idcliente, d.cliente_nombre
+order by periodo desc, d.cliente_nombre;
+
+create or replace view public.v_reportes_ganancia_mensual_bases as
+with detalle as (
+  select
+    pedido_id as idpedido,
+    idproducto,
+    cantidad,
+    precioventa,
+    precio_unitario,
+    costo_unitario
+  from public.v_reportes_pedidos_detalle_costos
+),
+movimientos as (
+  select
+    m.idpedido,
+    m.idbase,
+    b.nombre as base_nombre,
+    m.fecharegistro,
+    dmp.idproducto,
+    dmp.cantidad
+  from public.movimientopedidos m
+  join public.detallemovimientopedidos dmp on dmp.idmovimiento = m.id
+  left join public.bases b on b.id = m.idbase
+  where m.idbase is not null
+)
+select
+  date_trunc('month', mv.fecharegistro)::date as periodo,
+  mv.idbase,
+  mv.base_nombre,
+  count(distinct mv.idpedido)::bigint as pedidos,
+  sum(mv.cantidad * det.precio_unitario)::numeric(14,2) as total_venta,
+  sum(mv.cantidad * det.costo_unitario)::numeric(14,2) as total_costo,
+  (
+    sum(mv.cantidad * det.precio_unitario) - sum(mv.cantidad * det.costo_unitario)
+  )::numeric(14,2) as ganancia,
+  case
+    when sum(mv.cantidad * det.precio_unitario) = 0 then 0
+    else (
+      (
+        sum(mv.cantidad * det.precio_unitario)
+        - sum(mv.cantidad * det.costo_unitario)
+      ) / nullif(sum(mv.cantidad * det.precio_unitario), 0)
+    ) * 100
+  end::numeric(9,4) as margen_porcentaje
+from movimientos mv
+join detalle det
+  on det.idpedido = mv.idpedido
+ and det.idproducto = mv.idproducto
+group by periodo, mv.idbase, mv.base_nombre
+order by periodo desc, mv.base_nombre;

@@ -1,19 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'package:demo_pedidos/features/bases/presentation/form/bases_form_view.dart';
 import 'package:demo_pedidos/features/proveedores/presentation/form/proveedores_form_view.dart';
 import 'package:demo_pedidos/models/compra.dart';
 import 'package:demo_pedidos/models/compra_detalle.dart';
 import 'package:demo_pedidos/models/compra_gasto.dart';
 import 'package:demo_pedidos/models/compra_pago.dart';
-import 'package:demo_pedidos/models/logistica_base.dart';
+import 'package:demo_pedidos/models/compra_movimiento.dart';
+import 'package:demo_pedidos/models/compra_movimiento_detalle.dart';
 import 'package:demo_pedidos/models/producto.dart';
 import 'package:demo_pedidos/models/proveedor.dart';
 import 'package:demo_pedidos/ui/form/inline_form_table.dart';
 import 'package:demo_pedidos/ui/standard_data_table.dart';
 
 import '../shared/compra_gasto_form_view.dart';
+import '../shared/compra_movimiento_form_view.dart';
 import '../shared/compra_pago_form_view.dart';
 import '../shared/detalle_compra_form_view.dart';
 
@@ -27,31 +28,30 @@ class ComprasFormView extends StatefulWidget {
 }
 
 class _ComprasFormViewState extends State<ComprasFormView> {
-  static const String _newBaseValue = '__new_base__';
-
   final SupabaseClient _supabase = Supabase.instance.client;
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _observacionController = TextEditingController();
 
   List<Proveedor> _proveedores = <Proveedor>[];
-  List<LogisticaBase> _bases = <LogisticaBase>[];
   List<Producto> _productos = <Producto>[];
   List<CompraDetalle> _detalles = <CompraDetalle>[];
   List<CompraPago> _pagos = <CompraPago>[];
   List<CompraGasto> _gastos = <CompraGasto>[];
+  List<_CompraMovimientoRow> _movimientos = <_CompraMovimientoRow>[];
+  Map<String, double> _draftMovimientoTotals = <String, double>{};
 
   bool _isLoadingProveedores = true;
-  bool _isLoadingBases = true;
   bool _isLoadingProductos = true;
   bool _isLoadingDetalles = false;
   bool _isLoadingPagos = false;
   bool _isLoadingGastos = false;
+  bool _isLoadingMovimientos = false;
   bool _isSaving = false;
   bool _isPersistingDraft = false;
+  String? _deletingMovimientoId;
   bool _draftCreatedInSession = false;
 
   String? _selectedProveedorId;
-  String? _selectedBaseId;
   String? _compraId;
   DateTime? _registradoAt;
 
@@ -108,9 +108,30 @@ class _ComprasFormViewState extends State<ComprasFormView> {
       loadDataCallback: ( _ComprasFormViewState state) => state._loadGastos(),
       loadOnInitWhenEditing: true,
     ),
+    _InlineSectionConfig<_CompraMovimientoRow>(
+      key: 'movimientos',
+      title: 'Movimientos',
+      helperText:
+          'Registra cómo ingresa esta compra a tus bases logísticas.',
+      emptyMessage: 'Sin movimientos registrados.',
+      minTableWidth: 560,
+      itemsSelector: ( _ComprasFormViewState state) => state._movimientos,
+      isLoadingSelector: ( _ComprasFormViewState state) =>
+          state._isLoadingMovimientos,
+      columnsBuilder: ( _ComprasFormViewState state) =>
+          state._movimientoColumns(),
+      onAdd: ( _ComprasFormViewState state) => state._openMovimientoForm(),
+      onEdit:
+          ( _ComprasFormViewState state, _CompraMovimientoRow row) =>
+              state._openMovimientoForm(row: row),
+      loadDataCallback: ( _ComprasFormViewState state) =>
+          state._loadMovimientos(),
+      loadOnInitWhenEditing: true,
+    ),
   ];
 
   bool get _isEditing => widget.compra != null;
+  bool get _isDraftContext => !_isEditing;
 
   @override
   void initState() {
@@ -119,53 +140,15 @@ class _ComprasFormViewState extends State<ComprasFormView> {
     if (compra != null) {
       _compraId = compra.id;
       _selectedProveedorId = compra.idproveedor;
-      _selectedBaseId = compra.idbase;
       _registradoAt = compra.registradoAt;
       _observacionController.text = compra.observacion ?? '';
     }
     _loadInitialData();
   }
 
-  Future<void> _syncCompraMovimiento(String compraId) async {
-    final String? baseId = _selectedBaseId;
-    if (baseId == null) {
-      return;
-    }
-    await _supabase
-        .from('compras_movimientos')
-        .delete()
-        .eq('idcompra', compraId);
-    final Map<String, dynamic> movimiento = await _supabase
-        .from('compras_movimientos')
-        .insert(<String, dynamic>{
-          'idcompra': compraId,
-          'idbase': baseId,
-        })
-        .select('id')
-        .single();
-    if (_detalles.isEmpty) {
-      return;
-    }
-    final String movimientoId = movimiento['id'] as String;
-    final List<Map<String, dynamic>> movimientoDetalle =
-        _detalles.map((CompraDetalle detalle) {
-      return <String, dynamic>{
-        'idmovimiento': movimientoId,
-        'idproducto': detalle.idproducto,
-        'cantidad': detalle.cantidad,
-      };
-    }).toList(growable: false);
-    if (movimientoDetalle.isNotEmpty) {
-      await _supabase
-          .from('compras_movimiento_detalle')
-          .insert(movimientoDetalle);
-    }
-  }
-
   Future<void> _loadInitialData() async {
     await Future.wait<void>(<Future<void>>[
       _loadProveedores(selectId: _selectedProveedorId),
-      _loadBases(selectId: _selectedBaseId),
       _loadProductos(),
     ]);
     if (_isEditing) {
@@ -173,6 +156,7 @@ class _ComprasFormViewState extends State<ComprasFormView> {
         _loadDetalles(),
         _loadPagos(),
         _loadGastos(),
+        _loadMovimientos(),
       ]);
     }
   }
@@ -203,36 +187,6 @@ class _ComprasFormViewState extends State<ComprasFormView> {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('No se pudieron cargar proveedores: $error')),
-      );
-    }
-  }
-
-  Future<void> _loadBases({String? selectId}) async {
-    setState(() {
-      _isLoadingBases = true;
-    });
-    try {
-      final List<LogisticaBase> bases = await LogisticaBase.getBases();
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _bases = bases;
-        _isLoadingBases = false;
-        if (selectId != null &&
-            bases.any((LogisticaBase base) => base.id == selectId)) {
-          _selectedBaseId = selectId;
-        }
-      });
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _isLoadingBases = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No se pudieron cargar las bases: $error')),
       );
     }
   }
@@ -355,6 +309,62 @@ class _ComprasFormViewState extends State<ComprasFormView> {
     }
   }
 
+  Future<void> _loadMovimientos() async {
+    final String? compraId = _compraId;
+    if (compraId == null) {
+      return;
+    }
+    setState(() {
+      _isLoadingMovimientos = true;
+    });
+    try {
+      final List<CompraMovimiento> movimientos =
+          await CompraMovimiento.fetchByCompra(compraId);
+      final List<List<CompraMovimientoDetalle>> detallesList =
+          movimientos.isEmpty
+              ? <List<CompraMovimientoDetalle>>[]
+              : await Future.wait<List<CompraMovimientoDetalle>>(
+                  movimientos.map(
+                    (CompraMovimiento movimiento) =>
+                        CompraMovimientoDetalle.fetchByMovimiento(
+                      movimiento.id,
+                    ),
+                  ),
+                );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _movimientos = <_CompraMovimientoRow>[
+          for (int i = 0; i < movimientos.length; i++)
+            _CompraMovimientoRow(
+              movimiento: movimientos[i],
+              detalles: detallesList.length > i
+                  ? detallesList[i]
+                  : <CompraMovimientoDetalle>[],
+            ),
+        ];
+        _isLoadingMovimientos = false;
+        _draftMovimientoTotals = _isDraftContext
+            ? _buildDraftMovimientoTotals(_movimientos)
+            : <String, double>{};
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isLoadingMovimientos = false;
+        _draftMovimientoTotals = _isDraftContext
+            ? _buildDraftMovimientoTotals(_movimientos)
+            : <String, double>{};
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudieron cargar los movimientos: $error')),
+      );
+    }
+  }
+
   @override
   void dispose() {
     _observacionController.dispose();
@@ -362,24 +372,14 @@ class _ComprasFormViewState extends State<ComprasFormView> {
   }
 
   Future<void> _openNuevoProveedor() async {
-    final bool? changed = await Navigator.push<bool>(
+    final ProveedorFormResult? result = await Navigator.push<ProveedorFormResult>(
       context,
-      MaterialPageRoute<bool>(builder: (_) => const ProveedoresFormView()),
-    );
-    if (changed == true) {
-      await _loadProveedores();
-    }
-  }
-
-  Future<void> _openNuevaBase() async {
-    final String? newId = await Navigator.push<String>(
-      context,
-      MaterialPageRoute<String>(
-        builder: (_) => const BasesFormView(),
+      MaterialPageRoute<ProveedorFormResult>(
+        builder: (_) => const ProveedoresFormView(),
       ),
     );
-    if (newId != null) {
-      await _loadBases(selectId: newId);
+    if (result?.changed == true) {
+      await _loadProveedores(selectId: result?.proveedorId);
     }
   }
 
@@ -454,6 +454,90 @@ class _ComprasFormViewState extends State<ComprasFormView> {
     );
     if (changed == true) {
       await _loadGastos();
+    }
+  }
+
+  Future<void> _openMovimientoForm({_CompraMovimientoRow? row}) async {
+    if (!await _ensureCompraPersisted()) {
+      return;
+    }
+    if (_isLoadingProductos) {
+      await _loadProductos();
+      if (!mounted) {
+        return;
+      }
+    }
+    final Map<String, double>? draftBuffer =
+        _draftBufferForMovimiento(row: row);
+    final CompraMovimientoFormResult? result =
+        await Navigator.push<CompraMovimientoFormResult>(
+      context,
+      MaterialPageRoute<CompraMovimientoFormResult>(
+        builder: (_) => CompraMovimientoFormView(
+          compraId: _compraId!,
+          productos: _productos,
+          movimiento: row?.movimiento,
+          compraDetallesDraft: _detalles.isEmpty ? null : _detalles,
+          compraDraftMovimientoConsumos: draftBuffer,
+        ),
+      ),
+    );
+    if (result == null) {
+      return;
+    }
+    if (result.reloadProductos) {
+      await _loadProductos();
+      if (!mounted) {
+        return;
+      }
+    }
+    if (result.changed) {
+      await _loadMovimientos();
+    }
+  }
+
+  Future<void> _deleteMovimiento(String movimientoId) async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) => AlertDialog(
+        title: const Text('Eliminar movimiento'),
+        content: const Text(
+          'Esta acción eliminará el movimiento y su detalle. ¿Deseas continuar?',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) {
+      return;
+    }
+    setState(() {
+      _deletingMovimientoId = movimientoId;
+    });
+    try {
+      await CompraMovimiento.deleteById(movimientoId);
+      await _loadMovimientos();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo eliminar el movimiento: $error')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _deletingMovimientoId = null;
+        });
+      }
     }
   }
 
@@ -540,14 +624,6 @@ class _ComprasFormViewState extends State<ComprasFormView> {
       );
       return;
     }
-    if (_selectedBaseId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Selecciona la base donde ingresará la compra.'),
-        ),
-      );
-      return;
-    }
     if (_detalles.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Agrega al menos un producto.')),
@@ -588,7 +664,6 @@ class _ComprasFormViewState extends State<ComprasFormView> {
       if (detalleMaps.isNotEmpty) {
         await _supabase.from('compras_detalle').insert(detalleMaps);
       }
-      await _syncCompraMovimiento(compraId);
 
       if (!mounted) {
         return;
@@ -696,6 +771,134 @@ class _ComprasFormViewState extends State<ComprasFormView> {
     ];
   }
 
+  List<TableColumnConfig<_CompraMovimientoRow>> _movimientoColumns() {
+    return <TableColumnConfig<_CompraMovimientoRow>>[
+      TableColumnConfig<_CompraMovimientoRow>(
+        label: 'Registro',
+        sortAccessor: (_CompraMovimientoRow row) =>
+            row.movimiento.registradoAt ?? DateTime.fromMillisecondsSinceEpoch(0),
+        cellBuilder: (_CompraMovimientoRow row) =>
+            Text(_formatDateTime(row.movimiento.registradoAt)),
+      ),
+      TableColumnConfig<_CompraMovimientoRow>(
+        label: 'Base',
+        sortAccessor: (_CompraMovimientoRow row) =>
+            row.movimiento.baseNombre ?? '',
+        cellBuilder: (_CompraMovimientoRow row) =>
+            Text(row.movimiento.baseNombre ?? '-'),
+      ),
+      TableColumnConfig<_CompraMovimientoRow>(
+        label: 'Productos',
+        isNumeric: true,
+        sortAccessor: (_CompraMovimientoRow row) => row.detalles.length,
+        cellBuilder: (_CompraMovimientoRow row) =>
+            Text('${row.detalles.length}'),
+      ),
+      TableColumnConfig<_CompraMovimientoRow>(
+        label: 'Unidades',
+        isNumeric: true,
+        sortAccessor: (_CompraMovimientoRow row) =>
+            _movimientoCantidadTotal(row),
+        cellBuilder: (_CompraMovimientoRow row) =>
+            Text(_movimientoCantidadTotal(row).toStringAsFixed(2)),
+      ),
+      TableColumnConfig<_CompraMovimientoRow>(
+        label: 'Observación',
+        sortAccessor: (_CompraMovimientoRow row) =>
+            row.movimiento.observacion ?? '',
+        cellBuilder: (_CompraMovimientoRow row) =>
+            Text(row.movimiento.observacion ?? '-'),
+      ),
+      TableColumnConfig<_CompraMovimientoRow>(
+        label: 'Acciones',
+        cellBuilder: (_CompraMovimientoRow row) {
+          final bool isDeleting =
+              _deletingMovimientoId == row.movimiento.id;
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              IconButton(
+                tooltip: 'Editar',
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.edit_outlined, size: 18),
+                onPressed: () => _openMovimientoForm(row: row),
+              ),
+              if (isDeleting)
+                const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else
+                IconButton(
+                  tooltip: 'Eliminar',
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  onPressed: () => _deleteMovimiento(row.movimiento.id),
+                ),
+            ],
+          );
+        },
+      ),
+    ];
+  }
+
+  double _movimientoCantidadTotal(_CompraMovimientoRow row) {
+    return row.detalles.fold<double>(
+      0,
+      (double sum, CompraMovimientoDetalle detalle) => sum + detalle.cantidad,
+    );
+  }
+
+  Map<String, double> _buildDraftMovimientoTotals(
+    List<_CompraMovimientoRow> movimientos,
+  ) {
+    if (movimientos.isEmpty) {
+      return <String, double>{};
+    }
+    final Map<String, double> totals = <String, double>{};
+    for (final _CompraMovimientoRow row in movimientos) {
+      for (final CompraMovimientoDetalle detalle in row.detalles) {
+        totals[detalle.idproducto] =
+            (totals[detalle.idproducto] ?? 0) + detalle.cantidad;
+      }
+    }
+    totals.removeWhere((String _, double value) => value <= 0);
+    return totals;
+  }
+
+  Map<String, double>? _draftBufferForMovimiento({_CompraMovimientoRow? row}) {
+    if (!_isDraftContext || _draftMovimientoTotals.isEmpty || row == null) {
+      return null;
+    }
+    final Map<String, double> buffer =
+        Map<String, double>.from(_draftMovimientoTotals);
+    for (final CompraMovimientoDetalle detalle in row.detalles) {
+      final String productoId = detalle.idproducto;
+      final double updated =
+          (buffer[productoId] ?? 0) - detalle.cantidad;
+      if (updated <= 0.0001) {
+        buffer.remove(productoId);
+      } else {
+        buffer[productoId] = updated;
+      }
+    }
+    buffer.removeWhere((String _, double value) => value <= 0.0001);
+    return buffer.isEmpty ? null : buffer;
+  }
+
+  String _formatDateTime(DateTime? date) {
+    if (date == null) {
+      return '-';
+    }
+    final String day = date.day.toString().padLeft(2, '0');
+    final String month = date.month.toString().padLeft(2, '0');
+    final String hour = date.hour.toString().padLeft(2, '0');
+    final String minute = date.minute.toString().padLeft(2, '0');
+    return '$day/$month/${date.year} $hour:$minute';
+  }
+
   Widget _buildProveedorField() {
     if (_isLoadingProveedores) {
       return const Center(child: CircularProgressIndicator());
@@ -749,83 +952,6 @@ class _ComprasFormViewState extends State<ComprasFormView> {
     );
   }
 
-  Widget _buildBaseField() {
-    if (_isLoadingBases) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    final List<DropdownMenuItem<String?>> items = <DropdownMenuItem<String?>>[
-      const DropdownMenuItem<String?>(
-        value: null,
-        child: Text('Selecciona una base'),
-      ),
-      ..._bases.map(
-        (LogisticaBase base) => DropdownMenuItem<String?>(
-          value: base.id,
-          child: Text(base.nombre),
-        ),
-      ),
-      DropdownMenuItem<String?>(
-        value: _newBaseValue,
-        child: Row(
-          children: const <Widget>[
-            Icon(Icons.add, size: 16),
-            SizedBox(width: 6),
-            Text('Crear base'),
-          ],
-        ),
-      ),
-    ];
-
-    final bool hasSelected = _bases.any(
-      (LogisticaBase base) => base.id == _selectedBaseId,
-    );
-
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text(
-              'Movimiento de ingreso',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String?>(
-              decoration: const InputDecoration(
-                labelText: 'Base logística',
-                border: OutlineInputBorder(),
-              ),
-              value: hasSelected ? _selectedBaseId : null,
-              items: items,
-              onChanged: (String? value) {
-                if (value == _newBaseValue) {
-                  _openNuevaBase();
-                  return;
-                }
-                setState(() {
-                  _selectedBaseId = value;
-                });
-              },
-              validator: (String? value) {
-                if (value == null || value == _newBaseValue) {
-                  return 'Selecciona la base donde ingresará la compra';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Se creará un movimiento con los productos registrados para la base seleccionada.',
-              style: TextStyle(fontSize: 12, color: Colors.black54),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final Widget formBody = Form(
@@ -834,8 +960,6 @@ class _ComprasFormViewState extends State<ComprasFormView> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           _buildProveedorField(),
-          const SizedBox(height: 12),
-          _buildBaseField(),
           if (_isEditing && _registradoAt != null) ...<Widget>[
             const SizedBox(height: 12),
             Text('Registrado el: ${_registradoAt}'),
@@ -882,6 +1006,16 @@ class _ComprasFormViewState extends State<ComprasFormView> {
       ),
     );
   }
+}
+
+class _CompraMovimientoRow {
+  const _CompraMovimientoRow({
+    required this.movimiento,
+    required this.detalles,
+  });
+
+  final CompraMovimiento movimiento;
+  final List<CompraMovimientoDetalle> detalles;
 }
 
 abstract class _InlineSectionConfigBase {

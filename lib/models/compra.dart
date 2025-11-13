@@ -28,6 +28,22 @@ DateTime? _parseDate(dynamic value) {
   return null;
 }
 
+String? _coerceString(dynamic value) {
+  if (value == null) {
+    return null;
+  }
+  if (value is String) {
+    return value;
+  }
+  if (value is Map<String, dynamic>) {
+    final dynamic nombre = value['nombre'] ?? value['label'];
+    if (nombre is String) {
+      return nombre;
+    }
+  }
+  return value.toString();
+}
+
 class Compra {
   const Compra({
     required this.id,
@@ -71,9 +87,9 @@ class Compra {
       idproveedor: json['idproveedor'] as String,
       idbase: json['idbase'] as String?,
       observacion: json['observacion'] as String?,
-      proveedorNombre: json['proveedor_nombre'] as String?,
-      proveedorNumero: json['proveedor_numero'] as String?,
-      baseNombre: json['base_nombre'] as String?,
+      proveedorNombre: _coerceString(json['proveedor_nombre']),
+      proveedorNumero: _coerceString(json['proveedor_numero']),
+      baseNombre: _coerceString(json['base_nombre']),
       totalDetalle: _toDouble(json['total_detalle']),
       totalPagado: _toDouble(json['total_pagado']),
       saldo: _toDouble(json['saldo']),

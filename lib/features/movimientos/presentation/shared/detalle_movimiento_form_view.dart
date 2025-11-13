@@ -142,7 +142,6 @@ class _DetalleMovimientoFormViewState extends State<DetalleMovimientoFormView> {
       orElse: () => Producto(
         id: productoId,
         nombre: widget.detalle?.productoNombre ?? 'Producto',
-        precio: 0,
       ),
     );
     final DetalleMovimiento detalle = DetalleMovimiento(

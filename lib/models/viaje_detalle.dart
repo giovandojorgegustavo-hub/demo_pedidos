@@ -18,6 +18,9 @@ class ViajeDetalle {
     this.provinciaDestinatario,
     this.provinciaDni,
     this.baseNombre,
+    this.baseId,
+    this.packingId,
+    this.packingNombre,
   });
 
   final String id;
@@ -34,6 +37,9 @@ class ViajeDetalle {
   final String? provinciaDestinatario;
   final String? provinciaDni;
   final String? baseNombre;
+  final String? baseId;
+  final String? packingId;
+  final String? packingNombre;
 
   bool get entregado => llegadaAt != null;
 
@@ -55,6 +61,9 @@ class ViajeDetalle {
       provinciaDestinatario: json['provincia_destinatario'] as String?,
       provinciaDni: json['provincia_dni'] as String?,
       baseNombre: json['base_nombre'] as String?,
+      baseId: json['base_id'] as String?,
+      packingId: json['idpacking'] as String?,
+      packingNombre: json['packing_nombre'] as String?,
     );
   }
 
@@ -65,7 +74,8 @@ class ViajeDetalle {
         .eq('idviaje', viajeId)
         .order('registrado_at');
     return data
-        .map((dynamic item) => ViajeDetalle.fromJson(item as Map<String, dynamic>))
+        .map((dynamic item) =>
+            ViajeDetalle.fromJson(item as Map<String, dynamic>))
         .toList(growable: false);
   }
 
@@ -75,7 +85,8 @@ class ViajeDetalle {
         .select()
         .order('registrado_at', ascending: false);
     return data
-        .map((dynamic item) => ViajeDetalle.fromJson(item as Map<String, dynamic>))
+        .map((dynamic item) =>
+            ViajeDetalle.fromJson(item as Map<String, dynamic>))
         .toList(growable: false);
   }
 
@@ -109,11 +120,11 @@ class ViajeDetalle {
   }
 
   static Future<Set<String>> movimientosAsignados() async {
-    final List<dynamic> data = await _supabase
-        .from('viajesdetalles')
-        .select('idmovimiento');
+    final List<dynamic> data =
+        await _supabase.from('viajesdetalles').select('idmovimiento');
     return data
-        .map((dynamic item) => (item as Map<String, dynamic>)['idmovimiento'] as String)
+        .map((dynamic item) =>
+            (item as Map<String, dynamic>)['idmovimiento'] as String)
         .toSet();
   }
 

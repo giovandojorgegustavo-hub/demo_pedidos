@@ -3,10 +3,14 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:demo_pedidos/features/administracion/presentation/list/perfiles_list_view.dart';
 import 'package:demo_pedidos/features/clientes/presentation/list/clientes_list_view.dart';
-import 'package:demo_pedidos/features/cuentas/presentation/list/cuentas_list_view.dart';
 import 'package:demo_pedidos/features/pedidos/presentation/list/pedidos_list_view.dart';
 import 'package:demo_pedidos/features/viajes/presentation/list/viaje_detalles_list_view.dart';
+import 'package:demo_pedidos/features/finanzas/presentation/movimientos/finanzas_movimientos_list_view.dart';
+import 'package:demo_pedidos/features/contabilidad/presentation/balance_mensual/contabilidad_balance_mensual_view.dart';
+import 'package:demo_pedidos/features/asistencias/presentation/slots/asistencias_slots_list_view.dart';
+import 'package:demo_pedidos/features/comunicaciones/presentation/incidentes/comunicaciones_incidentes_list_view.dart';
 import 'package:demo_pedidos/features/operaciones/presentation/operaciones_dashboard_view.dart';
+import 'package:demo_pedidos/features/reportes/presentation/ganancia_diaria/reportes_ganancia_diaria_view.dart';
 import 'package:demo_pedidos/services/module_access_service.dart';
 import 'package:demo_pedidos/shared/module_definitions.dart';
 
@@ -19,21 +23,24 @@ class ModulesDashboardView extends StatefulWidget {
 
 class _ModulesDashboardViewState extends State<ModulesDashboardView> {
   late Future<Set<String>> _modulesFuture;
+  final ModuleAccessService _accessService = ModuleAccessService();
 
   @override
   void initState() {
     super.initState();
-    _modulesFuture = ModuleAccessService().loadModulesForCurrentUser();
+    _modulesFuture = _accessService.loadModulesForCurrentUser();
   }
 
   void _reload() {
     setState(() {
-      _modulesFuture = ModuleAccessService().loadModulesForCurrentUser();
+      _modulesFuture =
+          _accessService.loadModulesForCurrentUser(forceRefresh: true);
     });
   }
 
   Future<void> _signOut() async {
     await Supabase.instance.client.auth.signOut();
+    ModuleAccessService.clearCache();
   }
 
   void _openModule(String moduleId) {
@@ -42,13 +49,21 @@ class _ModulesDashboardViewState extends State<ModulesDashboardView> {
         case 'pedidos':
           return const PedidosListView();
         case 'operaciones':
-          return const OperacionesDashboardView();
+          return const OperacionesStockView();
         case 'almacen':
           return const ViajeDetallesListView();
         case 'bases':
           return const ClientesListView();
         case 'finanzas':
-          return const CuentasListView();
+          return const FinanzasMovimientosListView();
+        case 'contabilidad':
+          return const ContabilidadBalanceMensualView();
+        case 'asistencias':
+          return const AsistenciasSlotsListView();
+        case 'comunicaciones':
+          return const ComunicacionesIncidentesListView();
+        case 'reportes':
+          return const ReportesGananciaDiariaView();
         case 'administracion':
           return const PerfilesListView();
         default:

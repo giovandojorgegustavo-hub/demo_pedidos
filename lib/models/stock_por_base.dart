@@ -9,6 +9,8 @@ class StockPorBase {
     required this.idproducto,
     required this.productoNombre,
     required this.cantidad,
+    required this.costoUnitario,
+    required this.valorTotal,
   });
 
   final String? idbase;
@@ -16,6 +18,8 @@ class StockPorBase {
   final String idproducto;
   final String productoNombre;
   final double cantidad;
+  final double costoUnitario;
+  final double valorTotal;
 
   factory StockPorBase.fromJson(Map<String, dynamic> json) {
     return StockPorBase(
@@ -24,6 +28,8 @@ class StockPorBase {
       idproducto: json['idproducto'] as String,
       productoNombre: (json['producto_nombre'] as String?) ?? 'Producto',
       cantidad: _parseDouble(json['cantidad']),
+      costoUnitario: _parseDouble(json['costo_unitario']),
+      valorTotal: _parseDouble(json['valor_total']),
     );
   }
 
@@ -40,7 +46,20 @@ class StockPorBase {
   static Future<List<StockPorBase>> fetchAll() async {
     final List<dynamic> data = await _supabase
         .from('v_stock_por_base')
-        .select('idbase,base_nombre,idproducto,producto_nombre,cantidad');
+        .select(
+            'idbase,base_nombre,idproducto,producto_nombre,cantidad,costo_unitario,valor_total');
+    return data
+        .map((dynamic item) =>
+            StockPorBase.fromJson(item as Map<String, dynamic>))
+        .toList(growable: false);
+  }
+
+  static Future<List<StockPorBase>> fetchByBase(String baseId) async {
+    final List<dynamic> data = await _supabase
+        .from('v_stock_por_base')
+        .select(
+            'idbase,base_nombre,idproducto,producto_nombre,cantidad,costo_unitario,valor_total')
+        .eq('idbase', baseId);
     return data
         .map((dynamic item) =>
             StockPorBase.fromJson(item as Map<String, dynamic>))

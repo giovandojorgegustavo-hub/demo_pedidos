@@ -1,6 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:demo_pedidos/models/proveedor.dart';
 
+class ProveedorFormResult {
+  const ProveedorFormResult({required this.changed, this.proveedorId});
+
+  final bool changed;
+  final String? proveedorId;
+}
+
 class ProveedoresFormView extends StatefulWidget {
   const ProveedoresFormView({super.key, this.proveedor});
 
@@ -68,16 +75,26 @@ class _ProveedoresFormViewState extends State<ProveedoresFormView> {
           nombre: nombre,
           numero: numero,
         );
-        await Proveedor.insert(nuevo);
+        final String newId = await Proveedor.insert(nuevo);
+        if (!mounted) {
+          return;
+        }
+        Navigator.pop(
+          context,
+          ProveedorFormResult(changed: true, proveedorId: newId),
+        );
       } else {
         final Proveedor actualizado = widget.proveedor!
             .copyWith(nombre: nombre, numero: numero);
         await Proveedor.update(actualizado);
+        if (!mounted) {
+          return;
+        }
+        Navigator.pop(
+          context,
+          const ProveedorFormResult(changed: true),
+        );
       }
-      if (!mounted) {
-        return;
-      }
-      Navigator.pop(context, true);
     } catch (error) {
       if (!mounted) {
         return;

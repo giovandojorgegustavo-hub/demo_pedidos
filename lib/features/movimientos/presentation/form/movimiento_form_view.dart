@@ -565,7 +565,6 @@ class _MovimientoFormViewState extends State<MovimientoFormView> {
             (MapEntry<String, double> entry) => Producto(
               id: entry.key,
               nombre: _productosPedido[entry.key]?.nombre ?? 'Producto',
-              precio: 0,
             ),
           )
           .toList();
@@ -612,8 +611,8 @@ class _MovimientoFormViewState extends State<MovimientoFormView> {
     }
     final Producto? producto = _productos.firstWhere(
       (Producto item) => item.id == detalle.idproducto,
-      orElse: () => Producto(
-          id: detalle.idproducto, nombre: 'Producto desconocido', precio: 0),
+      orElse: () =>
+          Producto(id: detalle.idproducto, nombre: 'Producto desconocido'),
     );
     return producto?.nombre ?? 'Producto desconocido';
   }

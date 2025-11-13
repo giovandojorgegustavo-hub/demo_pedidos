@@ -6,6 +6,7 @@ import 'package:demo_pedidos/ui/page_scaffold.dart';
 import 'package:demo_pedidos/ui/standard_data_table.dart';
 import 'package:demo_pedidos/ui/table/table_section.dart';
 
+import '../detail/base_detail_view.dart';
 import '../form/bases_form_view.dart';
 
 class BasesListView extends StatefulWidget {
@@ -44,6 +45,21 @@ class _BasesListViewState extends State<BasesListView> {
       ),
     );
     if (result != null) {
+      _reload();
+    }
+  }
+
+  Future<void> _openDetalle(LogisticaBase base) async {
+    final bool? changed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute<bool>(
+        builder: (_) => BaseDetailView(
+          baseId: base.id,
+          currentSection: widget.currentSection,
+        ),
+      ),
+    );
+    if (changed == true) {
       _reload();
     }
   }
@@ -130,6 +146,7 @@ class _BasesListViewState extends State<BasesListView> {
             onRefresh: _reload,
             searchTextBuilder: (LogisticaBase base) => base.nombre,
             searchPlaceholder: 'Buscar base',
+            onRowTap: (LogisticaBase base) => _openDetalle(base),
             columns: <TableColumnConfig<LogisticaBase>>[
               TableColumnConfig<LogisticaBase>(
                 label: 'Nombre',

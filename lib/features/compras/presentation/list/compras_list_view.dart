@@ -20,6 +20,8 @@ class _ComprasListViewState extends State<ComprasListView> {
   late Future<List<Compra>> _future;
   int _countPorPagar = 0;
   int _countPorRecibir = 0;
+  final Set<String> _selectedCompraIds = <String>{};
+  bool get _hasSelection => _selectedCompraIds.isNotEmpty;
 
   @override
   void initState() {
@@ -35,6 +37,9 @@ class _ComprasListViewState extends State<ComprasListView> {
     setState(() {
       _countPorPagar = compras.where(_needsPago).length;
       _countPorRecibir = compras.where(_needsRecepcion).length;
+      _selectedCompraIds.removeWhere(
+        (String id) => compras.every((Compra compra) => compra.id != id),
+      );
     });
     return compras;
   }
@@ -83,9 +88,65 @@ class _ComprasListViewState extends State<ComprasListView> {
     }
   }
 
-  String _formatCurrency(double? value) {
-    final double number = value ?? 0;
-    return 'S/ ${number.toStringAsFixed(2)}';
+  void _toggleCompraSelection(Compra compra, bool selected) {
+    setState(() {
+      if (selected) {
+        _selectedCompraIds.add(compra.id);
+      } else {
+        _selectedCompraIds.remove(compra.id);
+      }
+    });
+  }
+
+  Future<void> _deleteSelectedCompras() async {
+    if (_selectedCompraIds.isEmpty) {
+      return;
+    }
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Eliminar compras'),
+          content: Text(
+            '¿Deseas eliminar ${_selectedCompraIds.length} '
+            'compra${_selectedCompraIds.length == 1 ? '' : 's'}? '
+            'Esta acción no se puede deshacer.',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Eliminar'),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true) {
+      return;
+    }
+    try {
+      for (final String id in _selectedCompraIds) {
+        await Compra.deleteById(id);
+      }
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _selectedCompraIds.clear();
+      });
+      await _reload();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudieron eliminar las compras: $error')),
+      );
+    }
   }
 
   String _formatDate(DateTime? date) {
@@ -94,11 +155,42 @@ class _ComprasListViewState extends State<ComprasListView> {
     }
     final String day = date.day.toString().padLeft(2, '0');
     final String month = date.month.toString().padLeft(2, '0');
-    return '$day/$month/${date.year}';
+    final String hour = date.hour.toString().padLeft(2, '0');
+    final String minute = date.minute.toString().padLeft(2, '0');
+    return '$day/$month/${date.year} $hour:$minute';
   }
 
-  Widget _buildTable(List<Compra> items, String emptyMessage,
-      {bool showCreateShortcut = false}) {
+  String _estadoGeneral(Compra compra) {
+    final String pago = (compra.estadoPago ?? '').toLowerCase();
+    final String entrega = (compra.estadoEntrega ?? '').toLowerCase();
+    if (pago == 'cancelada' &&
+        (entrega == 'completo' || entrega == 'terminado')) {
+      return 'terminado';
+    }
+    if (pago == 'pendiente' || entrega == 'pendiente') {
+      return 'pendiente';
+    }
+    if (entrega == 'sin_productos' && pago != 'cancelada') {
+      return 'pendiente';
+    }
+    if (pago == 'parcial' || entrega == 'parcial') {
+      return 'parcial';
+    }
+    return 'parcial';
+  }
+
+  String _formatState(String? value) {
+    if (value == null || value.isEmpty) {
+      return '-';
+    }
+    return value.replaceAll('_', ' ');
+  }
+
+  Widget _buildTable(
+    List<Compra> items,
+    String emptyMessage, {
+    bool showCreateShortcut = false,
+  }) {
     return TableSection<Compra>(
       items: items,
       columns: <TableColumnConfig<Compra>>[
@@ -113,27 +205,19 @@ class _ComprasListViewState extends State<ComprasListView> {
           cellBuilder: (Compra c) => Text(c.proveedorNombre ?? '-'),
         ),
         TableColumnConfig<Compra>(
-          label: 'Base',
-          sortAccessor: (Compra c) => c.baseNombre ?? '',
-          cellBuilder: (Compra c) => Text(c.baseNombre ?? '-'),
+          label: 'Pago',
+          sortAccessor: (Compra c) => (c.estadoPago ?? '').toLowerCase(),
+          cellBuilder: (Compra c) => Text(_formatState(c.estadoPago)),
         ),
         TableColumnConfig<Compra>(
-          label: 'Total',
-          isNumeric: true,
-          sortAccessor: (Compra c) => c.totalDetalle ?? 0,
-          cellBuilder: (Compra c) => Text(_formatCurrency(c.totalDetalle)),
+          label: 'Entrega',
+          sortAccessor: (Compra c) => (c.estadoEntrega ?? '').toLowerCase(),
+          cellBuilder: (Compra c) => Text(_formatState(c.estadoEntrega)),
         ),
         TableColumnConfig<Compra>(
-          label: 'Pagado',
-          isNumeric: true,
-          sortAccessor: (Compra c) => c.totalPagado ?? 0,
-          cellBuilder: (Compra c) => Text(_formatCurrency(c.totalPagado)),
-        ),
-        TableColumnConfig<Compra>(
-          label: 'Saldo',
-          isNumeric: true,
-          sortAccessor: (Compra c) => c.saldo ?? 0,
-          cellBuilder: (Compra c) => Text(_formatCurrency(c.saldo)),
+          label: 'General',
+          sortAccessor: (Compra c) => _estadoGeneral(c),
+          cellBuilder: (Compra c) => Text(_formatState(_estadoGeneral(c))),
         ),
       ],
       onRowTap: _openDetalle,
@@ -162,8 +246,9 @@ class _ComprasListViewState extends State<ComprasListView> {
         ),
       ],
       searchTextBuilder: (Compra c) =>
-          '${c.proveedorNombre ?? ''} ${c.baseNombre ?? ''} ${c.observacion ?? ''}',
-      searchPlaceholder: 'Buscar por proveedor o base',
+          '${c.proveedorNombre ?? ''} ${c.observacion ?? ''} '
+          '${c.estadoPago ?? ''} ${c.estadoEntrega ?? ''}',
+      searchPlaceholder: 'Buscar por proveedor',
       emptyMessage: emptyMessage,
       emptyBuilder: showCreateShortcut
           ? (BuildContext context) => Padding(
@@ -181,6 +266,22 @@ class _ComprasListViewState extends State<ComprasListView> {
                 ),
               )
           : null,
+      selectionConfig: TableSelectionConfig<Compra>(
+        isItemSelected: (Compra compra) =>
+            _selectedCompraIds.contains(compra.id),
+        onSelectionChange: (Compra compra, bool selected) =>
+            _toggleCompraSelection(compra, selected),
+        selectionMode: _hasSelection,
+        showCheckboxColumn: true,
+        onRequestSelectionStart: (Compra compra) {
+          if (_selectedCompraIds.contains(compra.id)) {
+            return;
+          }
+          setState(() {
+            _selectedCompraIds.add(compra.id);
+          });
+        },
+      ),
     );
   }
 
@@ -261,11 +362,17 @@ class _ComprasListViewState extends State<ComprasListView> {
             );
           },
         ),
-        floatingActionButton: FloatingActionButton(
-          onPressed: _openCreate,
-          tooltip: 'Registrar compra',
-          child: const Icon(Icons.add),
-        ),
+        floatingActionButton: _hasSelection
+            ? FloatingActionButton.extended(
+                onPressed: _deleteSelectedCompras,
+                icon: const Icon(Icons.delete_outline),
+                label: Text('Eliminar (${_selectedCompraIds.length})'),
+              )
+            : FloatingActionButton(
+                onPressed: _openCreate,
+                tooltip: 'Registrar compra',
+                child: const Icon(Icons.add),
+              ),
       ),
     );
   }

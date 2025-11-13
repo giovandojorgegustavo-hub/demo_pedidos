@@ -1,9 +1,9 @@
 import 'package:demo_pedidos/models/producto.dart';
+import 'package:demo_pedidos/shared/app_sections.dart';
 import 'package:demo_pedidos/ui/page_scaffold.dart';
 import 'package:demo_pedidos/ui/standard_data_table.dart';
 import 'package:demo_pedidos/ui/table/table_section.dart';
 import 'package:flutter/material.dart';
-import 'package:demo_pedidos/shared/app_sections.dart';
 
 import '../form/productos_form_view.dart';
 
@@ -111,17 +111,18 @@ class _ProductosListViewState extends State<ProductosListView> {
               TableColumnConfig<Producto>(
                 label: 'Producto',
                 sortAccessor: (Producto p) => p.nombre,
-                cellBuilder: _nombre,
+                cellBuilder: (Producto p) => Text(p.nombre),
               ),
               TableColumnConfig<Producto>(
-                label: 'Precio (S/)',
-                isNumeric: true,
-                sortAccessor: (Producto p) => p.precio,
-                cellBuilder: _precio,
+                label: 'Categoría',
+                sortAccessor: (Producto p) => p.categoriaNombre ?? '',
+                cellBuilder: (Producto p) =>
+                    Text(p.categoriaNombre ?? 'Sin categoría'),
               ),
             ],
             onRefresh: _reload,
-            searchTextBuilder: (Producto p) => p.nombre,
+            searchTextBuilder: (Producto p) =>
+                '${p.nombre} ${p.categoriaNombre ?? ''}',
             searchPlaceholder: 'Buscar producto',
           );
         },
@@ -144,9 +145,4 @@ class _ProductosListViewState extends State<ProductosListView> {
       _reload();
     }
   }
-
-  static Widget _nombre(Producto producto) => Text(producto.nombre);
-
-  static Widget _precio(Producto producto) =>
-      Text(producto.precio.toStringAsFixed(2));
 }

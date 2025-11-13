@@ -13,6 +13,9 @@ class Viaje {
     this.numWsp,
     this.monto,
     this.editadoAt,
+    this.packingId,
+    this.packingNombre,
+    this.packingBaseId,
     this.totalItems = 0,
     this.pendientes = 0,
     this.estadoTexto,
@@ -28,6 +31,9 @@ class Viaje {
   final String? numWsp;
   final double? monto;
   final DateTime? editadoAt;
+  final String? packingId;
+  final String? packingNombre;
+  final String? packingBaseId;
   final int totalItems;
   final int pendientes;
   final String? estadoTexto;
@@ -50,6 +56,9 @@ class Viaje {
       monto: _parseDouble(json['monto']),
       registradoAt: _parseDateTime(registradoRaw),
       editadoAt: editadoRaw == null ? null : _parseDateTime(editadoRaw),
+      packingId: json['idpacking'] as String?,
+      packingNombre: json['packing_nombre'] as String?,
+      packingBaseId: json['packing_base_id'] as String?,
       totalItems: (json['total_items'] as num?)?.toInt() ?? 0,
       pendientes: (json['pendientes'] as num?)?.toInt() ?? 0,
       estadoTexto: json['estado_texto'] as String?,
@@ -67,6 +76,9 @@ class Viaje {
     String? numWsp,
     double? monto,
     DateTime? editadoAt,
+    String? packingId,
+    String? packingNombre,
+    String? packingBaseId,
   }) {
     return Viaje(
       id: id ?? this.id,
@@ -78,6 +90,9 @@ class Viaje {
       numWsp: numWsp ?? this.numWsp,
       monto: monto ?? this.monto,
       editadoAt: editadoAt ?? this.editadoAt,
+      packingId: packingId ?? this.packingId,
+      packingNombre: packingNombre ?? this.packingNombre,
+      packingBaseId: packingBaseId ?? this.packingBaseId,
       totalItems: totalItems,
       pendientes: pendientes,
       estadoTexto: estadoTexto,
@@ -92,6 +107,7 @@ class Viaje {
       'num_wsp': numWsp,
       'num_pago': numPago,
       'link': link,
+      'idpacking': packingId,
       'monto': monto,
       'registrado_at': registradoAt.toIso8601String(),
     };
@@ -104,6 +120,7 @@ class Viaje {
       'num_wsp': numWsp,
       'num_pago': numPago,
       'link': link,
+      'idpacking': packingId,
       'monto': monto,
       'registrado_at': registradoAt.toIso8601String(),
       'editado_at': DateTime.now().toIso8601String(),

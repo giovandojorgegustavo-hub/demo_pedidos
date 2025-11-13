@@ -6,15 +6,37 @@ import 'package:demo_pedidos/features/bases/presentation/list/bases_list_view.da
 import 'package:demo_pedidos/features/cuentas/presentation/list/cuentas_list_view.dart';
 import 'package:demo_pedidos/features/clientes/presentation/list/clientes_list_view.dart';
 import 'package:demo_pedidos/features/compras/presentation/list/compras_list_view.dart';
+import 'package:demo_pedidos/features/finanzas/presentation/pagos/finanzas_pagos_list_view.dart';
+import 'package:demo_pedidos/features/finanzas/presentation/movimientos/finanzas_movimientos_list_view.dart';
+import 'package:demo_pedidos/features/finanzas/presentation/cuentas_contables/cuentas_contables_list_view.dart';
+import 'package:demo_pedidos/features/finanzas/presentation/gastos/finanzas_gastos_pedidos_list_view.dart';
+import 'package:demo_pedidos/features/finanzas/presentation/transferencias/finanzas_transferencias_list_view.dart';
+import 'package:demo_pedidos/features/finanzas/presentation/ajustes/finanzas_ajustes_list_view.dart';
 import 'package:demo_pedidos/features/home/presentation/modules_dashboard_view.dart';
+import 'package:demo_pedidos/features/contabilidad/presentation/balance_mensual/contabilidad_balance_mensual_view.dart';
+import 'package:demo_pedidos/features/contabilidad/presentation/estado_resultados/contabilidad_estado_resultados_view.dart';
+import 'package:demo_pedidos/features/contabilidad/presentation/balance_general/contabilidad_balance_general_view.dart';
+import 'package:demo_pedidos/features/comunicaciones/presentation/incidentes/comunicaciones_incidentes_list_view.dart';
+import 'package:demo_pedidos/features/comunicaciones/presentation/internas/comunicaciones_internas_list_view.dart';
+import 'package:demo_pedidos/features/asistencias/presentation/slots/asistencias_slots_list_view.dart';
+import 'package:demo_pedidos/features/asistencias/presentation/asignaciones/asistencias_asignaciones_list_view.dart';
+import 'package:demo_pedidos/features/asistencias/presentation/marcar/asistencias_marcar_view.dart';
+import 'package:demo_pedidos/features/asistencias/presentation/historial/asistencias_historial_view.dart';
 import 'package:demo_pedidos/features/movimientos/presentation/list/movimientos_list_view.dart';
 import 'package:demo_pedidos/features/proveedores/presentation/list/proveedores_list_view.dart';
 import 'package:demo_pedidos/features/pedidos/presentation/list/pedidos_list_view.dart';
 import 'package:demo_pedidos/features/productos/presentation/list/productos_list_view.dart';
 import 'package:demo_pedidos/features/viajes/presentation/list/viaje_detalles_list_view.dart';
 import 'package:demo_pedidos/features/viajes/presentation/list/viajes_list_view.dart';
+import 'package:demo_pedidos/features/operaciones/presentation/ajustes_list_view.dart';
+import 'package:demo_pedidos/features/operaciones/presentation/fabricaciones_list_view.dart';
 import 'package:demo_pedidos/features/operaciones/presentation/operaciones_dashboard_view.dart';
-import 'package:demo_pedidos/features/operaciones/presentation/operaciones_placeholder_view.dart';
+import 'package:demo_pedidos/features/operaciones/presentation/transferencias_list_view.dart';
+import 'package:demo_pedidos/features/operaciones/presentation/gastos/operaciones_gastos_list_view.dart';
+import 'package:demo_pedidos/features/reportes/presentation/ganancia_bases/reportes_ganancia_bases_view.dart';
+import 'package:demo_pedidos/features/reportes/presentation/ganancia_clientes/reportes_ganancia_clientes_view.dart';
+import 'package:demo_pedidos/features/reportes/presentation/ganancia_diaria/reportes_ganancia_diaria_view.dart';
+import 'package:demo_pedidos/features/reportes/presentation/ganancia_mensual/reportes_ganancia_mensual_view.dart';
 import 'package:demo_pedidos/services/module_access_service.dart';
 import 'package:demo_pedidos/shared/app_sections.dart';
 import 'package:demo_pedidos/shared/module_definitions.dart';
@@ -44,16 +66,23 @@ class AppDrawer extends StatelessWidget {
         case AppSection.viajesDetalle:
           return const ViajeDetallesListView();
         case AppSection.operacionesStock:
+          return const OperacionesStockView();
         case AppSection.operacionesHistorial:
-          return OperacionesDashboardView(initialSection: target);
+          return const OperacionesHistorialView();
         case AppSection.operacionesCompras:
           return const ComprasListView();
         case AppSection.operacionesTransferencias:
-          return const OperacionesTransferenciasView();
+          return const TransferenciasListView();
         case AppSection.operacionesFabricacion:
-          return const OperacionesFabricacionView();
+          return const FabricacionesListView();
         case AppSection.operacionesAjustes:
-          return const OperacionesAjustesView();
+          return const AjustesListView();
+        case AppSection.operacionesGastos:
+          return const OperacionesGastosListView();
+        case AppSection.finanzasGastosOperativos:
+          return const OperacionesGastosListView(
+            currentSection: AppSection.finanzasGastosOperativos,
+          );
         case AppSection.proveedores:
           return const ProveedoresListView();
         case AppSection.operacionesBases:
@@ -62,6 +91,44 @@ class AppDrawer extends StatelessWidget {
           return const ProductosListView(
             currentSection: AppSection.operacionesProductos,
           );
+        case AppSection.finanzasPagos:
+          return const FinanzasPagosListView();
+        case AppSection.finanzasGastos:
+          return const FinanzasMovimientosListView();
+        case AppSection.finanzasCuentas:
+          return const CuentasContablesListView();
+        case AppSection.finanzasGastosPedidos:
+          return const FinanzasGastosPedidosListView();
+        case AppSection.finanzasTransferencias:
+          return const FinanzasTransferenciasListView();
+        case AppSection.finanzasAjustes:
+          return const FinanzasAjustesListView();
+        case AppSection.contabilidadBalanceMensual:
+          return const ContabilidadBalanceMensualView();
+        case AppSection.contabilidadEstadoResultados:
+          return const ContabilidadEstadoResultadosView();
+        case AppSection.contabilidadBalanceGeneral:
+          return const ContabilidadBalanceGeneralView();
+        case AppSection.reportesGananciaDiaria:
+          return const ReportesGananciaDiariaView();
+        case AppSection.reportesGananciaMensual:
+          return const ReportesGananciaMensualView();
+        case AppSection.reportesGananciaClientes:
+          return const ReportesGananciaClientesView();
+        case AppSection.reportesGananciaBases:
+          return const ReportesGananciaBasesView();
+        case AppSection.comunicacionesIncidentes:
+          return const ComunicacionesIncidentesListView();
+        case AppSection.comunicacionesInternas:
+          return const ComunicacionesInternasListView();
+        case AppSection.asistenciasSlots:
+          return const AsistenciasSlotsListView();
+        case AppSection.asistenciasBaseSlots:
+          return const AsistenciasAsignacionesListView();
+        case AppSection.asistenciasMarcar:
+          return const AsistenciasMarcarView();
+        case AppSection.asistenciasHistorial:
+          return const AsistenciasHistorialView();
         case AppSection.productos:
           return const ProductosListView();
         case AppSection.clientes:
@@ -84,6 +151,7 @@ class AppDrawer extends StatelessWidget {
 
   Future<void> _signOut(BuildContext context) async {
     await Supabase.instance.client.auth.signOut();
+    ModuleAccessService.clearCache();
     Navigator.of(context).pop();
   }
 
@@ -303,6 +371,12 @@ class AppDrawer extends StatelessWidget {
           Icons.fastfood_outlined,
           'Productos',
         );
+      case AppSection.operacionesGastos:
+        return _DrawerEntry(
+          section,
+          Icons.payments_outlined,
+          'Gastos operativos',
+        );
       case AppSection.productos:
         return _DrawerEntry(
           section,
@@ -333,11 +407,131 @@ class AppDrawer extends StatelessWidget {
           Icons.account_balance_wallet_outlined,
           'Bancos',
         );
+      case AppSection.finanzasPagos:
+        return _DrawerEntry(
+          section,
+          Icons.payments_outlined,
+          'Pagos',
+        );
+      case AppSection.finanzasGastos:
+        return _DrawerEntry(
+          section,
+          Icons.receipt_long_outlined,
+          'Gastos de caja',
+        );
+      case AppSection.finanzasCuentas:
+        return _DrawerEntry(
+          section,
+          Icons.account_tree_outlined,
+          'Cuentas contables',
+        );
+      case AppSection.finanzasGastosOperativos:
+        return _DrawerEntry(
+          section,
+          Icons.attach_money_rounded,
+          'Gastos operativos',
+        );
+      case AppSection.finanzasGastosPedidos:
+        return _DrawerEntry(
+          section,
+          Icons.receipt_long_outlined,
+          'Gastos de pedidos',
+        );
+      case AppSection.finanzasTransferencias:
+        return _DrawerEntry(
+          section,
+          Icons.swap_horiz_outlined,
+          'Transferencias',
+        );
+      case AppSection.finanzasAjustes:
+        return _DrawerEntry(
+          section,
+          Icons.tune_outlined,
+          'Ajustes de bancos',
+        );
+      case AppSection.contabilidadBalanceMensual:
+        return _DrawerEntry(
+          section,
+          Icons.table_chart_outlined,
+          'Balance mensual',
+        );
+      case AppSection.contabilidadEstadoResultados:
+        return _DrawerEntry(
+          section,
+          Icons.analytics_outlined,
+          'Estado de resultados',
+        );
+      case AppSection.contabilidadBalanceGeneral:
+        return _DrawerEntry(
+          section,
+          Icons.pie_chart_outline,
+          'Balance general',
+        );
+      case AppSection.reportesGananciaDiaria:
+        return _DrawerEntry(
+          section,
+          Icons.today_outlined,
+          'Ganancia diaria',
+        );
+      case AppSection.reportesGananciaMensual:
+        return _DrawerEntry(
+          section,
+          Icons.calendar_month_outlined,
+          'Ganancia mensual',
+        );
+      case AppSection.reportesGananciaClientes:
+        return _DrawerEntry(
+          section,
+          Icons.people_outline,
+          'Ganancia por cliente',
+        );
+      case AppSection.reportesGananciaBases:
+        return _DrawerEntry(
+          section,
+          Icons.location_city_outlined,
+          'Ganancia por base',
+        );
+      case AppSection.comunicacionesIncidentes:
+        return _DrawerEntry(
+          section,
+          Icons.report_problem_outlined,
+          'Incidencias',
+        );
+      case AppSection.comunicacionesInternas:
+        return _DrawerEntry(
+          section,
+          Icons.message_outlined,
+          'Comunicaciones internas',
+        );
       case AppSection.usuarios:
         return _DrawerEntry(
           section,
           Icons.admin_panel_settings_outlined,
           'Usuarios',
+        );
+      case AppSection.asistenciasSlots:
+        return _DrawerEntry(
+          section,
+          Icons.schedule_outlined,
+          'Slots',
+        );
+      case AppSection.asistenciasBaseSlots:
+        return _DrawerEntry(
+          section,
+          Icons.map_outlined,
+          'Asignaciones',
+        );
+      case AppSection.asistenciasMarcar:
+        return _DrawerEntry(
+          section,
+          Icons.checklist_outlined,
+          'Marcar asistencia',
+        );
+      case AppSection.asistenciasHistorial:
+        return _DrawerEntry(
+          section,
+          Icons.history_toggle_off_outlined,
+          'Historial de asistencias',
         );
     }
   }

@@ -1,4 +1,5 @@
 import 'package:demo_pedidos/features/viajes/presentation/shared/viaje_detalle_form_view.dart';
+import 'package:demo_pedidos/models/base_packing.dart';
 import 'package:demo_pedidos/models/movimiento_resumen.dart';
 import 'package:demo_pedidos/models/viaje.dart';
 import 'package:demo_pedidos/models/viaje_detalle.dart';
@@ -28,6 +29,10 @@ class _ViajeFormViewState extends State<ViajeFormView> {
   late TextEditingController _numPagoController;
   late TextEditingController _linkController;
   late TextEditingController _montoController;
+  List<BasePacking> _packings = <BasePacking>[];
+  bool _isLoadingPackings = false;
+  String? _selectedPackingId;
+  String? _currentBaseId;
 
   late DateTime _fecha;
   late TimeOfDay _hora;
@@ -53,6 +58,7 @@ class _ViajeFormViewState extends State<ViajeFormView> {
     _linkController = TextEditingController(text: viaje?.link ?? '');
     _montoController =
         TextEditingController(text: viaje?.monto?.toStringAsFixed(2) ?? '');
+    _selectedPackingId = viaje?.packingId;
 
     final DateTime baseFecha = viaje?.registradoAt ?? DateTime.now();
     _fecha = DateTime(baseFecha.year, baseFecha.month, baseFecha.day);
@@ -91,6 +97,7 @@ class _ViajeFormViewState extends State<ViajeFormView> {
             .toList(growable: true);
         _isLoadingDetalles = false;
       });
+      _handleBaseContextChange();
     } catch (error) {
       if (!mounted) {
         return;
@@ -101,6 +108,80 @@ class _ViajeFormViewState extends State<ViajeFormView> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('No se pudo cargar el detalle: $error')),
       );
+    }
+  }
+
+  Future<void> _loadPackingsForBase(String? baseId) async {
+    if (baseId == null) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _packings = <BasePacking>[];
+        _selectedPackingId = null;
+        _isLoadingPackings = false;
+      });
+      return;
+    }
+    setState(() {
+      _isLoadingPackings = true;
+    });
+    try {
+      final List<BasePacking> items = await BasePacking.fetchByBase(baseId);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _packings = items;
+        if (_selectedPackingId != null &&
+            !_packings.any(
+              (BasePacking pack) => pack.id == _selectedPackingId,
+            )) {
+          _selectedPackingId = null;
+        }
+        _isLoadingPackings = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _packings = <BasePacking>[];
+        _selectedPackingId = null;
+        _isLoadingPackings = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudieron cargar los packing: $error')),
+      );
+    }
+  }
+
+  void _handleBaseContextChange() {
+    if (_detalles.isEmpty) {
+      if (_currentBaseId != null) {
+        _currentBaseId = null;
+        _loadPackingsForBase(null);
+      }
+      return;
+    }
+    final String? baseId = _detalles.first.idBase;
+    final bool hasConflict = baseId == null
+        ? false
+        : _detalles.any(
+            (_DetalleDraft item) =>
+                item.idBase != null && item.idBase != baseId,
+          );
+    if (hasConflict) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Hay movimientos de distintas bases en el viaje. Verifica los datos.'),
+        ),
+      );
+    }
+    if (baseId != _currentBaseId) {
+      _currentBaseId = baseId;
+      _loadPackingsForBase(baseId);
     }
   }
 
@@ -182,6 +263,23 @@ class _ViajeFormViewState extends State<ViajeFormView> {
         }
         return;
       }
+      final String? movimientoBaseId = movimiento.idBase;
+      final String? currentBaseId =
+          _detalles.isNotEmpty ? _detalles.first.idBase : _currentBaseId;
+      if (currentBaseId != null &&
+          movimientoBaseId != null &&
+          currentBaseId != movimientoBaseId) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'El viaje solo puede incluir movimientos de la misma base.',
+              ),
+            ),
+          );
+        }
+        return;
+      }
       final _DetalleDraft draftResult = _DetalleDraft.fromMovimiento(movimiento)
           .copyWith(detalleId: draft?.detalleId);
       if (!mounted) {
@@ -194,6 +292,7 @@ class _ViajeFormViewState extends State<ViajeFormView> {
           _detalles.add(draftResult);
         }
       });
+      _handleBaseContextChange();
     } catch (error) {
       if (!mounted) {
         return;
@@ -208,6 +307,56 @@ class _ViajeFormViewState extends State<ViajeFormView> {
     setState(() {
       _detalles.remove(item);
     });
+    _handleBaseContextChange();
+  }
+
+  Widget _buildPackingSelector() {
+    if (_detalles.isEmpty) {
+      return const Text(
+        'Agrega movimientos al viaje para poder seleccionar el packing.',
+        style: TextStyle(color: Colors.black54),
+      );
+    }
+    if (_isLoadingPackings) {
+      return const LinearProgressIndicator(minHeight: 2);
+    }
+    if (_packings.isEmpty) {
+      return const Text(
+        'La base no tiene packing configurados. Agrégalos desde el módulo de Bases.',
+        style: TextStyle(color: Colors.black54),
+      );
+    }
+    return DropdownButtonFormField<String>(
+      initialValue: _selectedPackingId,
+      decoration: const InputDecoration(
+        labelText: 'Packing del viaje',
+        border: OutlineInputBorder(),
+      ),
+      items: _packings
+          .map(
+            (BasePacking item) => DropdownMenuItem<String>(
+              value: item.id,
+              child: Text(item.nombre),
+            ),
+          )
+          .toList(),
+      onChanged: _isSaving
+          ? null
+          : (String? value) {
+              setState(() {
+                _selectedPackingId = value;
+              });
+            },
+      validator: (String? value) {
+        if (_packings.isEmpty) {
+          return null;
+        }
+        if (value == null || value.isEmpty) {
+          return 'Selecciona el packing';
+        }
+        return null;
+      },
+    );
   }
 
   List<TableColumnConfig<_DetalleDraft>> _detalleColumns() {
@@ -290,6 +439,15 @@ class _ViajeFormViewState extends State<ViajeFormView> {
       );
       return;
     }
+    if (_packings.isNotEmpty &&
+        (_selectedPackingId == null || _selectedPackingId!.isEmpty)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Selecciona el packing del viaje.'),
+        ),
+      );
+      return;
+    }
     setState(() {
       _isSaving = true;
     });
@@ -317,6 +475,16 @@ class _ViajeFormViewState extends State<ViajeFormView> {
       _hora.minute,
     );
 
+    BasePacking? selectedPacking;
+    if (_selectedPackingId != null) {
+      for (final BasePacking pack in _packings) {
+        if (pack.id == _selectedPackingId) {
+          selectedPacking = pack;
+          break;
+        }
+      }
+    }
+
     final Viaje payload = Viaje(
       id: _viaje?.id ?? '',
       nombreMotorizado: _nombreController.text.trim(),
@@ -327,6 +495,9 @@ class _ViajeFormViewState extends State<ViajeFormView> {
           ? null
           : _numWspController.text.trim(),
       monto: monto,
+      packingId: _selectedPackingId,
+      packingNombre: selectedPacking?.nombre,
+      packingBaseId: _currentBaseId,
       registradoAt: registradoAt,
       editadoAt: _viaje?.editadoAt,
       totalItems: _viaje?.totalItems ?? 0,
@@ -442,6 +613,8 @@ class _ViajeFormViewState extends State<ViajeFormView> {
               },
             ),
             const SizedBox(height: 12),
+            _buildPackingSelector(),
+            const SizedBox(height: 12),
             TextFormField(
               controller: _montoController,
               decoration: const InputDecoration(
@@ -502,6 +675,8 @@ class _DetalleDraft {
     this.direccion,
     this.destino,
     this.esProvincia = false,
+    this.idBase,
+    this.baseNombre,
   });
 
   final String? detalleId;
@@ -511,6 +686,8 @@ class _DetalleDraft {
   final String? direccion;
   final String? destino;
   final bool esProvincia;
+  final String? idBase;
+  final String? baseNombre;
 
   _DetalleDraft copyWith({
     String? detalleId,
@@ -520,6 +697,8 @@ class _DetalleDraft {
     String? direccion,
     String? destino,
     bool? esProvincia,
+    String? idBase,
+    String? baseNombre,
   }) {
     return _DetalleDraft(
       detalleId: detalleId ?? this.detalleId,
@@ -529,6 +708,8 @@ class _DetalleDraft {
       direccion: direccion ?? this.direccion,
       destino: destino ?? this.destino,
       esProvincia: esProvincia ?? this.esProvincia,
+      idBase: idBase ?? this.idBase,
+      baseNombre: baseNombre ?? this.baseNombre,
     );
   }
 
@@ -540,6 +721,8 @@ class _DetalleDraft {
       direccion: mov.esProvincia ? null : mov.direccion,
       destino: mov.esProvincia ? mov.provinciaDestino : null,
       esProvincia: mov.esProvincia,
+      idBase: mov.idBase,
+      baseNombre: mov.baseNombre,
     );
   }
 
@@ -552,6 +735,8 @@ class _DetalleDraft {
       direccion: detalle.esProvincia ? null : detalle.direccionTexto,
       destino: detalle.esProvincia ? detalle.provinciaDestino : null,
       esProvincia: detalle.esProvincia,
+      idBase: detalle.baseId,
+      baseNombre: detalle.baseNombre,
     );
   }
 

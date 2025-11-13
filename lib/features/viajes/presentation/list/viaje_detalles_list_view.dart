@@ -143,6 +143,12 @@ class _ViajeDetallesListViewState extends State<ViajeDetallesListView> {
         ),
       ),
       TableColumnConfig<ViajeDetalle>(
+        label: 'Packing',
+        sortAccessor: (ViajeDetalle item) => item.packingNombre ?? '',
+        cellBuilder: (ViajeDetalle item) =>
+            Text(item.packingNombre ?? 'No asignado'),
+      ),
+      TableColumnConfig<ViajeDetalle>(
         label: 'Acciones',
         cellBuilder: (ViajeDetalle item) => Row(
           mainAxisSize: MainAxisSize.min,
