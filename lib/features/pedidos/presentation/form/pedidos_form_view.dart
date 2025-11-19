@@ -17,6 +17,7 @@ import 'package:demo_pedidos/ui/form/inline_form_table.dart';
 import 'package:demo_pedidos/ui/standard_data_table.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:demo_pedidos/templates/form_view_template.dart';
 
 class PedidosFormView extends StatefulWidget {
   const PedidosFormView({super.key, this.pedido});
@@ -1269,31 +1270,14 @@ class _PedidosFormViewState extends State<PedidosFormView> {
       ),
     );
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.pedido == null ? 'Nuevo pedido' : 'Editar pedido'),
-      ),
-      body: SafeArea(
-        child: Column(
-          children: <Widget>[
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: formBody,
-              ),
-            ),
-            SafeArea(
-              top: false,
-              child: _FormFooter(
-                isSaving: _isSaving || _isPersistingDraft,
-                onCancel:
-                    (_isSaving || _isPersistingDraft) ? null : _handleCancel,
-                onSave: (_isSaving || _isPersistingDraft) ? null : _onSave,
-              ),
-            ),
-          ],
-        ),
-      ),
+    final bool isBusy = _isSaving || _isPersistingDraft;
+
+    return FormViewTemplate(
+      title: widget.pedido == null ? 'Nuevo pedido' : 'Editar pedido',
+      isSaving: isBusy,
+      onCancel: isBusy ? null : _handleCancel,
+      onSave: isBusy ? null : _onSave,
+      child: formBody,
     );
   }
 }
@@ -1398,53 +1382,6 @@ class _InlineFormSectionConfig<T> extends _InlineFormSectionConfigBase {
       rowMaxHeight: effectiveRowMaxHeight,
       onAdd: onAdd == null ? null : () => onAdd!(state),
       onRowTap: onEdit == null ? null : (T item) => onEdit!(state, item),
-    );
-  }
-}
-
-class _FormFooter extends StatelessWidget {
-  const _FormFooter({
-    required this.isSaving,
-    required this.onCancel,
-    required this.onSave,
-  });
-
-  final bool isSaving;
-  final VoidCallback? onCancel;
-  final VoidCallback? onSave;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        boxShadow: const <BoxShadow>[
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 6,
-            offset: Offset(0, -2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: <Widget>[
-          Expanded(
-            child: OutlinedButton(
-              onPressed: onCancel,
-              child: const Text('Cancelar'),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: FilledButton(
-              onPressed: onSave,
-              child: Text(isSaving ? 'Guardando...' : 'Guardar'),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

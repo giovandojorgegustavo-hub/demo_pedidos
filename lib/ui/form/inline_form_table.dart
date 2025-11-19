@@ -16,6 +16,7 @@ class InlineFormTable<T> extends StatelessWidget {
     this.emptyMessage = 'Sin registros',
     this.helperText,
     this.rowMaxHeight,
+    this.addButtonLabel = 'Agregar',
   });
 
   final String title;
@@ -27,6 +28,7 @@ class InlineFormTable<T> extends StatelessWidget {
   final String emptyMessage;
   final String? helperText;
   final double? rowMaxHeight;
+  final String addButtonLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -51,9 +53,10 @@ class InlineFormTable<T> extends StatelessWidget {
                   ),
                 ),
                 if (onAdd != null)
-                  TextButton(
+                  TextButton.icon(
                     onPressed: onAdd,
-                    child: const Text('Nuevo'),
+                    icon: const Icon(Icons.add),
+                    label: Text(addButtonLabel),
                   ),
               ],
             ),

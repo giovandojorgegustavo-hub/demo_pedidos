@@ -114,10 +114,6 @@ class Cliente {
           'numero': cliente.numero,
           'canal': cliente.canal,
           'referido_por': cliente.referidoPor,
-          if (cliente.registradoAt != null)
-            'registrado_at': cliente.registradoAt!.toIso8601String(),
-          if (cliente.registradoPor != null)
-            'registrado_por': cliente.registradoPor,
           if (cliente.editadoAt != null)
             'editado_at': cliente.editadoAt!.toIso8601String(),
           if (cliente.editadoPor != null)
@@ -126,12 +122,32 @@ class Cliente {
         .eq('id', cliente.id);
   }
 
-  static Future<bool> numeroExists(String numero) async {
+  static Future<Cliente?> getById(String id) async {
+    final Map<String, dynamic>? row = await _supabase
+        .from('clientes')
+        .select(
+          'id,nombre,numero,canal,referido_por,registrado_at,editado_at,registrado_por,editado_por',
+        )
+        .eq('id', id)
+        .maybeSingle();
+    if (row == null) {
+      return null;
+    }
+    return Cliente.fromJson(row);
+  }
+
+  static Future<bool> numeroExists(String numero, {String? excludeId}) async {
     final Map<String, dynamic>? existing = await _supabase
         .from('clientes')
         .select('id')
         .eq('numero', numero)
         .maybeSingle();
-    return existing != null;
+    if (existing == null) {
+      return false;
+    }
+    if (excludeId != null && existing['id'] == excludeId) {
+      return false;
+    }
+    return true;
   }
 }

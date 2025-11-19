@@ -115,6 +115,7 @@ class _FabricacionesFormViewState extends State<FabricacionesFormView> {
       setState(() {
         _productoCostos = costos;
         _isLoadingCostos = false;
+        _recalculateFabricadoCostos();
       });
     } catch (error) {
       if (!mounted) {
@@ -166,6 +167,7 @@ class _FabricacionesFormViewState extends State<FabricacionesFormView> {
       setState(() {
         _consumidos = detalles;
         _isLoadingConsumidos = false;
+        _recalculateFabricadoCostos();
       });
     } catch (error) {
       if (!mounted) {
@@ -195,6 +197,7 @@ class _FabricacionesFormViewState extends State<FabricacionesFormView> {
       setState(() {
         _fabricados = detalles;
         _isLoadingFabricados = false;
+        _recalculateFabricadoCostos();
       });
     } catch (error) {
       if (!mounted) {
@@ -222,6 +225,7 @@ class _FabricacionesFormViewState extends State<FabricacionesFormView> {
       setState(() {
         _gastos = rows;
         _isLoadingGastos = false;
+        _recalculateFabricadoCostos();
       });
     } catch (error) {
       if (!mounted) {
@@ -275,6 +279,7 @@ class _FabricacionesFormViewState extends State<FabricacionesFormView> {
           return item;
         }).toList();
       }
+      _recalculateFabricadoCostos();
     });
   }
 
@@ -319,6 +324,7 @@ class _FabricacionesFormViewState extends State<FabricacionesFormView> {
           return item;
         }).toList();
       }
+      _recalculateFabricadoCostos();
     });
   }
 
@@ -347,12 +353,14 @@ class _FabricacionesFormViewState extends State<FabricacionesFormView> {
           return item;
         }).toList();
       }
+      _recalculateFabricadoCostos();
     });
   }
 
   void _removeGasto(FabricacionGasto gasto) {
     setState(() {
       _gastos = _gastos.where((FabricacionGasto item) => item != gasto).toList();
+      _recalculateFabricadoCostos();
     });
   }
 
@@ -361,6 +369,7 @@ class _FabricacionesFormViewState extends State<FabricacionesFormView> {
       _consumidos = _consumidos
           .where((FabricacionDetalleConsumido item) => item != detalle)
           .toList();
+      _recalculateFabricadoCostos();
     });
   }
 
@@ -369,6 +378,7 @@ class _FabricacionesFormViewState extends State<FabricacionesFormView> {
       _fabricados = _fabricados
           .where((FabricacionDetalleFabricado item) => item != detalle)
           .toList();
+      _recalculateFabricadoCostos();
     });
   }
 
@@ -568,7 +578,7 @@ class _FabricacionesFormViewState extends State<FabricacionesFormView> {
         Align(
           alignment: Alignment.centerRight,
           child: Text(
-            'Total insumos: ${_consumidos.length}',
+            'Total insumos: ${_consumidos.length} · ${_formatCurrency(_totalInsumosCosto)}',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
         ),
@@ -597,7 +607,7 @@ class _FabricacionesFormViewState extends State<FabricacionesFormView> {
         Align(
           alignment: Alignment.centerRight,
           child: Text(
-            'Total productos: ${_fabricados.length}',
+            'Total productos: ${_fabricados.length} · ${_totalFabricadoCantidad.toStringAsFixed(2)} u',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
         ),
@@ -704,21 +714,18 @@ class _FabricacionesFormViewState extends State<FabricacionesFormView> {
       TableColumnConfig<FabricacionDetalleFabricado>(
         label: 'Costo unitario',
         isNumeric: true,
-        cellBuilder: (_) =>
-            Text(_formatCurrency(_costoUnitarioPromedio)),
-        sortAccessor: (_) => _costoUnitarioPromedio,
+        sortAccessor: (FabricacionDetalleFabricado detalle) =>
+            detalle.costoUnitario,
+        cellBuilder: (FabricacionDetalleFabricado detalle) =>
+            Text(_formatCurrency(detalle.costoUnitario)),
       ),
       TableColumnConfig<FabricacionDetalleFabricado>(
         label: 'Costo total',
         isNumeric: true,
         sortAccessor: (FabricacionDetalleFabricado detalle) =>
-            detalle.cantidad * _costoUnitarioPromedio,
+            detalle.costoTotal,
         cellBuilder: (FabricacionDetalleFabricado detalle) =>
-            Text(
-              _formatCurrency(
-                _costoUnitarioPromedio * detalle.cantidad,
-              ),
-            ),
+            Text(_formatCurrency(detalle.costoTotal)),
       ),
       TableColumnConfig<FabricacionDetalleFabricado>(
         label: 'Acciones',
@@ -856,19 +863,31 @@ class _FabricacionesFormViewState extends State<FabricacionesFormView> {
     );
   }
 
-  double get _costoUnitarioPromedio {
-    final double totalFabricado = _totalFabricadoCantidad;
-    if (totalFabricado == 0) {
-      return 0;
-    }
-    return (_totalInsumosCosto + _totalGastos) / totalFabricado;
-  }
+  double get _costoUnitarioPromedio => _calculateUnitCost();
 
   double _costoProducto(String productoId) {
     return _productoCostos[productoId] ?? 0;
   }
 
   String _formatCurrency(double value) => 'S/ ${value.toStringAsFixed(2)}';
+
+  double _calculateUnitCost() {
+    final double totalFabricado = _totalFabricadoCantidad;
+    if (totalFabricado <= 0) {
+      return 0;
+    }
+    return (_totalInsumosCosto + _totalGastos) / totalFabricado;
+  }
+
+  void _recalculateFabricadoCostos() {
+    final double unitCost = _calculateUnitCost();
+    _fabricados = _fabricados
+        .map((FabricacionDetalleFabricado detalle) => detalle.copyWith(
+              costoUnitario: unitCost,
+              costoTotal: unitCost * detalle.cantidad,
+            ))
+        .toList();
+  }
 }
 
 class _ResumenRow extends StatelessWidget {

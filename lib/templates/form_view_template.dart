@@ -1,137 +1,63 @@
 import 'package:flutter/material.dart';
 
-// TODO: Import your model
-// import 'package:demo_pedidos/models/my_model.dart';
+class FormViewTemplate extends StatelessWidget {
+  const FormViewTemplate({
+    super.key,
+    required this.title,
+    required this.child,
+    required this.isSaving,
+    required this.onSave,
+    this.onCancel,
+    this.actions = const <Widget>[],
+    this.cancelLabel = 'Cancelar',
+    this.saveLabel = 'Guardar',
+    this.savingLabel = 'Guardando...',
+    this.showCancelButton = true,
+    this.contentPadding = const EdgeInsets.all(16),
+    this.wrapInScrollView = true,
+  });
 
-// TODO: Replace 'MyModel' with your model name (e.g., Cliente, Producto)
-typedef MyModel = ({String id, String name}); // Example model
-
-class FormViewTemplate extends StatefulWidget {
-  // TODO: Replace 'MyModel' with your model type
-  final MyModel? item;
-
-  const FormViewTemplate({super.key, this.item});
-
-  @override
-  State<FormViewTemplate> createState() => _FormViewTemplateState();
-}
-
-class _FormViewTemplateState extends State<FormViewTemplate> {
-  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-
-  // TODO: Create controllers for your form fields
-  final TextEditingController _nameController = TextEditingController();
-
-  bool _isSaving = false;
-
-  bool get _isEditing => widget.item != null;
-
-  @override
-  void initState() {
-    super.initState();
-    if (_isEditing) {
-      // TODO: Initialize controllers with item data
-      _nameController.text = widget.item!.name;
-    }
-  }
-
-  @override
-  void dispose() {
-    // TODO: Dispose your controllers
-    _nameController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _onSave() async {
-    if (_formKey.currentState?.validate() != true) {
-      return;
-    }
-
-    setState(() {
-      _isSaving = true;
-    });
-
-    try {
-      // TODO: Create the payload from your controllers
-      // ignore: unused_local_variable
-      final payload = (
-        id: widget.item?.id ?? '',
-        name: _nameController.text,
-      );
-
-      if (_isEditing) {
-        // TODO: Implement your update logic
-        // await MyModel.update(payload);
-      } else {
-        // TODO: Implement your insert logic
-        // await MyModel.insert(payload);
-      }
-
-      if (!mounted) {
-        return;
-      }
-      Navigator.pop(context, true); // Return true to indicate success
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not save item: $error')),
-      );
-      setState(() {
-        _isSaving = false;
-      });
-    }
-  }
+  final String title;
+  final Widget child;
+  final bool isSaving;
+  final VoidCallback? onSave;
+  final VoidCallback? onCancel;
+  final List<Widget> actions;
+  final String cancelLabel;
+  final String saveLabel;
+  final String savingLabel;
+  final bool showCancelButton;
+  final EdgeInsets contentPadding;
+  final bool wrapInScrollView;
 
   @override
   Widget build(BuildContext context) {
+    Widget content = Padding(
+      padding: contentPadding,
+      child: child,
+    );
+    if (wrapInScrollView) {
+      content = SingleChildScrollView(child: content);
+    }
+
     return Scaffold(
       appBar: AppBar(
-        // TODO: Update the title
-        title: Text(_isEditing ? 'Edit Item' : 'New Item'),
+        title: Text(title),
+        actions: actions,
       ),
       body: SafeArea(
         child: Column(
           children: <Widget>[
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: <Widget>[
-                      // TODO: Add your form fields here
-                      TextFormField(
-                        controller: _nameController,
-                        decoration: const InputDecoration(
-                          labelText: 'Name',
-                          border: OutlineInputBorder(),
-                        ),
-                        validator: (String? value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'This field is required.';
-                          }
-                          return null;
-                        },
-                      ),
-                      // Example of another field
-                      // const SizedBox(height: 16),
-                      // TextFormField(
-                      //   ...
-                      // ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
+            Expanded(child: content),
             SafeArea(
               top: false,
-              child: _FormFooter(
-                isSaving: _isSaving,
-                onCancel: _isSaving ? null : () => Navigator.pop(context),
-                onSave: _isSaving ? null : _onSave,
+              child: _FormTemplateFooter(
+                isSaving: isSaving,
+                onCancel: showCancelButton ? onCancel : null,
+                onSave: onSave,
+                cancelLabel: cancelLabel,
+                saveLabel: saveLabel,
+                savingLabel: savingLabel,
               ),
             ),
           ],
@@ -141,16 +67,22 @@ class _FormViewTemplateState extends State<FormViewTemplate> {
   }
 }
 
-class _FormFooter extends StatelessWidget {
-  const _FormFooter({
+class _FormTemplateFooter extends StatelessWidget {
+  const _FormTemplateFooter({
     required this.isSaving,
     required this.onCancel,
     required this.onSave,
+    required this.cancelLabel,
+    required this.saveLabel,
+    required this.savingLabel,
   });
 
   final bool isSaving;
   final VoidCallback? onCancel;
   final VoidCallback? onSave;
+  final String cancelLabel;
+  final String saveLabel;
+  final String savingLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -169,17 +101,18 @@ class _FormFooter extends StatelessWidget {
       ),
       child: Row(
         children: <Widget>[
-          Expanded(
-            child: OutlinedButton(
-              onPressed: onCancel,
-              child: const Text('Cancel'),
+          if (onCancel != null)
+            Expanded(
+              child: OutlinedButton(
+                onPressed: onCancel,
+                child: Text(cancelLabel),
+              ),
             ),
-          ),
-          const SizedBox(width: 12),
+          if (onCancel != null) const SizedBox(width: 12),
           Expanded(
             child: FilledButton(
               onPressed: onSave,
-              child: Text(isSaving ? 'Saving...' : 'Save'),
+              child: Text(isSaving ? savingLabel : saveLabel),
             ),
           ),
         ],

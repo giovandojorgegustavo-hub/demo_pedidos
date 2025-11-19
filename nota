@@ -1,4 +1,4 @@
-cd ~/Documentos/demo_pedidos
+cd ~/Documentos/demo_pedidosERP/erp_app
 git status
 git add -A
 git commit -m "PRueba a"

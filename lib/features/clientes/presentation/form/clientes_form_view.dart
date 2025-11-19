@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ClientesFormView extends StatefulWidget {
-  const ClientesFormView({super.key});
+  const ClientesFormView({super.key, this.cliente});
+
+  final Cliente? cliente;
 
   @override
   State<ClientesFormView> createState() => _ClientesFormViewState();
@@ -18,13 +20,22 @@ class _ClientesFormViewState extends State<ClientesFormView> {
   bool _isLoadingReferentes = false;
   final SupabaseClient _supabase = Supabase.instance.client;
   final List<String> _canales = <String>['telegram', 'referido', 'ads', 'qr'];
-  String _canal = 'telegram';
+  late String _canal = widget.cliente?.canal ?? 'telegram';
   List<Cliente> _clientes = <Cliente>[];
   String? _referidoPorId;
+
+  bool get _isEditing => widget.cliente != null;
 
   @override
   void initState() {
     super.initState();
+    final Cliente? cliente = widget.cliente;
+    if (cliente != null) {
+      _nombreController.text = cliente.nombre;
+      _numeroController.text = cliente.numero;
+      _canal = cliente.canal;
+      _referidoPorId = cliente.referidoPor;
+    }
     _loadReferentes();
   }
 
@@ -82,7 +93,10 @@ class _ClientesFormViewState extends State<ClientesFormView> {
     });
 
     final String numeroInput = _numeroController.text.trim();
-    final bool numeroDuplicado = await Cliente.numeroExists(numeroInput);
+    final bool numeroDuplicado = await Cliente.numeroExists(
+      numeroInput,
+      excludeId: widget.cliente?.id,
+    );
     if (numeroDuplicado) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -98,21 +112,32 @@ class _ClientesFormViewState extends State<ClientesFormView> {
     }
 
     final Cliente payload = Cliente(
-      id: '',
+      id: widget.cliente?.id ?? '',
       nombre: _nombreController.text.trim(),
       numero: numeroInput,
       canal: _canal,
       referidoPor: _canal == 'referido' ? _referidoPorId : null,
-      registradoAt: DateTime.now(),
-      registradoPor: userId,
+      registradoAt: widget.cliente?.registradoAt ?? DateTime.now(),
+      registradoPor: widget.cliente?.registradoPor ?? userId,
+      editadoAt: _isEditing ? DateTime.now() : null,
+      editadoPor: _isEditing ? userId : null,
     );
 
     try {
-      final String id = await Cliente.insert(payload);
+      if (_isEditing) {
+        await Cliente.update(payload);
+      } else {
+        final String id = await Cliente.insert(payload);
+        if (!mounted) {
+          return;
+        }
+        Navigator.pop(context, id);
+        return;
+      }
       if (!mounted) {
         return;
       }
-      Navigator.pop(context, id);
+      Navigator.pop(context, payload.id);
     } catch (error) {
       if (!mounted) {
         return;
@@ -129,7 +154,7 @@ class _ClientesFormViewState extends State<ClientesFormView> {
   @override
   Widget build(BuildContext context) {
     return FormPageScaffold(
-      title: 'Nuevo cliente',
+      title: _isEditing ? 'Editar cliente' : 'Nuevo cliente',
       onCancel: _isSaving ? null : () => Navigator.pop(context),
       onSave: _onSave,
       isSaving: _isSaving,

@@ -5,7 +5,7 @@ import 'package:demo_pedidos/features/movimientos/presentation/form/movimiento_f
 import 'package:demo_pedidos/features/movimientos/presentation/list/movimientos_list_view.dart';
 import 'package:demo_pedidos/features/pagos/presentation/form/pagos_form_view.dart';
 import 'package:demo_pedidos/features/pagos/presentation/list/pagos_list_view.dart';
-import 'package:demo_pedidos/features/pedidos/presentation/form/pedidos_form_view.dart';
+import 'package:demo_pedidos/features/pedidos/presentation/actions/pedidos_actions.dart';
 import 'package:demo_pedidos/features/pedidos/presentation/list/pedido_productos_list_view.dart';
 import 'package:demo_pedidos/features/pedidos/presentation/shared/detalle_pedido_form_view.dart';
 import 'package:demo_pedidos/models/cargo_cliente.dart';
@@ -16,7 +16,6 @@ import 'package:demo_pedidos/models/movimiento_resumen.dart';
 import 'package:demo_pedidos/models/pago.dart';
 import 'package:demo_pedidos/models/pedido.dart';
 import 'package:demo_pedidos/models/pedido_detalle_snapshot.dart';
-import 'package:demo_pedidos/ui/page_scaffold.dart';
 import 'package:demo_pedidos/ui/standard_data_table.dart';
 import 'package:demo_pedidos/models/producto.dart';
 import 'package:demo_pedidos/ui/table/detail_inline_section.dart';
@@ -24,6 +23,7 @@ import 'package:demo_pedidos/ui/table/detail_row_actions.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:demo_pedidos/shared/app_sections.dart';
+import 'package:demo_pedidos/templates/detail_view_template.dart';
 
 class PedidosDetalleView extends StatefulWidget {
   const PedidosDetalleView({super.key, required this.pedidoId});
@@ -270,13 +270,8 @@ class _PedidosDetalleViewState extends State<PedidosDetalleView> {
   }
 
   Future<void> _openPedidoForm(Pedido pedido) async {
-    final bool? updated = await Navigator.push<bool>(
-      context,
-      MaterialPageRoute<bool>(
-        builder: (_) => PedidosFormView(pedido: pedido),
-      ),
-    );
-    if (updated == true && mounted) {
+    final bool updated = await PedidosActions.edit(context, pedido);
+    if (updated && mounted) {
       _refreshData(markChanged: true);
     }
   }
@@ -888,6 +883,24 @@ class _PedidosDetalleViewState extends State<PedidosDetalleView> {
         ),
     ];
 
+    final Widget scaffold = DetailViewTemplate(
+      title: 'Detalle del pedido',
+      currentSection: AppSection.pedidos,
+      includeDrawer: false,
+      actions: actions,
+      floatingActionButton: _pedido == null
+          ? null
+          : FloatingActionButton(
+              tooltip: 'Editar',
+              onPressed: () => _openPedidoForm(_pedido!),
+              child: const Icon(Icons.edit),
+            ),
+      future: _future,
+      onRetry: _refreshData,
+      errorTitle: 'No se pudo cargar el pedido.',
+      builder: _buildDetailBody,
+    );
+
     return PopScope(
       canPop: !_hasChanges,
       onPopInvokedWithResult: (bool didPop, Object? result) {
@@ -896,136 +909,97 @@ class _PedidosDetalleViewState extends State<PedidosDetalleView> {
         }
         Navigator.pop(context, true);
       },
-      child: PageScaffold(
-        title: 'Detalle del pedido',
-        currentSection: AppSection.pedidos,
-        includeDrawer: false,
-        actions: actions,
-        floatingActionButton: _pedido == null
-            ? null
-            : FloatingActionButton(
-                tooltip: 'Editar',
-                onPressed: () => _openPedidoForm(_pedido!),
-                child: const Icon(Icons.edit),
-              ),
-        body: FutureBuilder<void>(
-          future: _future,
-          builder: (BuildContext context, AsyncSnapshot<void> snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
+      child: scaffold,
+    );
+  }
 
-            if (snapshot.hasError) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      const Text('No se pudo cargar el pedido.'),
-                      const SizedBox(height: 8),
-                      Text(
-                        '${snapshot.error}',
-                        style: const TextStyle(color: Colors.redAccent),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 12),
-                      ElevatedButton(
-                        onPressed: () => _refreshData(),
-                        child: const Text('Reintentar'),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }
-
-            final Pedido? pedido = _pedido;
-            if (pedido == null) {
-              return const Center(child: Text('Pedido no encontrado.'));
-            }
-
-            return LayoutBuilder(
-              builder: (BuildContext context, BoxConstraints constraints) {
-                final double viewportWidth = constraints.hasBoundedWidth
-                    ? constraints.maxWidth
-                    : MediaQuery.of(context).size.width;
-                final double safeWidth = viewportWidth.isFinite
-                    ? viewportWidth
-                    : MediaQuery.of(context).size.width;
-                final double minTableWidth = safeWidth < 560 ? 560 : safeWidth;
-                final List<TableColumnConfig<_DetalleItem>> detalleColumns =
-                    _detalleColumns(pedido);
-
-                return SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: <Widget>[
-                      _buildSummaryCard(pedido),
-                      const SizedBox(height: 16),
-                      DetailInlineSection<_DetalleItem>(
-                        title: 'Detalle Ped',
-                        items: _detalles,
-                        columns: detalleColumns,
-                        emptyMessage: 'Sin productos en este pedido.',
-                        minTableWidth: minTableWidth,
-                        onAdd: () => _createDetalle(),
-                        onRowTap: (_DetalleItem item) =>
-                            _openDetalleForm(item.detalle),
-                        onView: _openProductosTable,
-                      ),
-                      const SizedBox(height: 16),
-                      DetailInlineSection<Pago>(
-                        title: 'Pagos',
-                        items: _pagos,
-                        columns: _pagoColumns(),
-                        onAdd: () => _openPagoForm(),
-                        onView: _openPagosTable,
-                        emptyMessage: 'Sin pagos registrados.',
-                        minTableWidth: minTableWidth,
-                      ),
-                      const SizedBox(height: 16),
-                      DetailInlineSection<CargoCliente>(
-                        title: 'Cargos',
-                        items: _cargos,
-                        columns: _cargoColumns(),
-                        onAdd: () => _openCargoForm(),
-                        onView: _openCargosTable,
-                        emptyMessage: 'Sin cargos registrados.',
-                        minTableWidth: minTableWidth,
-                      ),
-                      const SizedBox(height: 16),
-                      DetailInlineSection<_MovimientoItem>(
-                        title: 'Movimiento',
-                        items: _movimientos,
-                        columns: _movimientoColumns(),
-                        onAdd: () => _openMovimientoForm(),
-                        onView: _openMovimientosTable,
-                        onRowTap: (_MovimientoItem item) =>
-                            _openMovimientoDetalle(item.base.id),
-                        emptyMessage: 'Sin movimientos registrados.',
-                        minTableWidth: minTableWidth,
-                        rowMaxHeightBuilder: (List<_MovimientoItem> items) {
-                          final bool needsExtra = items.any(
-                            (_MovimientoItem item) =>
-                                item.base.esProvincia &&
-                                _movimientoDestinoTexto(
-                                      item.resumen,
-                                      item.base.esProvincia,
-                                    ).contains('\n'),
-                          );
-                          return needsExtra ? 108 : null;
-                        },
-                      ),
-                    ],
-                  ),
-                );
-              },
-            );
-          },
+  Widget _buildDetailBody(BuildContext context) {
+    final Pedido? pedido = _pedido;
+    if (pedido == null) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Text('El pedido ya no está disponible.'),
         ),
-      ),
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final double viewportWidth = constraints.hasBoundedWidth
+            ? constraints.maxWidth
+            : MediaQuery.of(context).size.width;
+        final double safeWidth = viewportWidth.isFinite
+            ? viewportWidth
+            : MediaQuery.of(context).size.width;
+        final double minTableWidth = safeWidth < 560 ? 560 : safeWidth;
+        final List<TableColumnConfig<_DetalleItem>> detalleColumns =
+            _detalleColumns(pedido);
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              _buildSummaryCard(pedido),
+              const SizedBox(height: 16),
+              DetailInlineSection<_DetalleItem>(
+                title: 'Detalle Ped',
+                items: _detalles,
+                columns: detalleColumns,
+                emptyMessage: 'Sin productos en este pedido.',
+                minTableWidth: minTableWidth,
+                onAdd: () => _createDetalle(),
+                onRowTap: (_DetalleItem item) => _openDetalleForm(item.detalle),
+                onView: _openProductosTable,
+              ),
+              const SizedBox(height: 16),
+              DetailInlineSection<Pago>(
+                title: 'Pagos',
+                items: _pagos,
+                columns: _pagoColumns(),
+                onAdd: () => _openPagoForm(),
+                onView: _openPagosTable,
+                emptyMessage: 'Sin pagos registrados.',
+                minTableWidth: minTableWidth,
+              ),
+              const SizedBox(height: 16),
+              DetailInlineSection<CargoCliente>(
+                title: 'Cargos',
+                items: _cargos,
+                columns: _cargoColumns(),
+                onAdd: () => _openCargoForm(),
+                onView: _openCargosTable,
+                emptyMessage: 'Sin cargos registrados.',
+                minTableWidth: minTableWidth,
+              ),
+              const SizedBox(height: 16),
+              DetailInlineSection<_MovimientoItem>(
+                title: 'Movimiento',
+                items: _movimientos,
+                columns: _movimientoColumns(),
+                onAdd: () => _openMovimientoForm(),
+                onView: _openMovimientosTable,
+                onRowTap: (_MovimientoItem item) =>
+                    _openMovimientoDetalle(item.base.id),
+                emptyMessage: 'Sin movimientos registrados.',
+                minTableWidth: minTableWidth,
+                rowMaxHeightBuilder: (List<_MovimientoItem> items) {
+                  final bool needsExtra = items.any(
+                    (_MovimientoItem item) =>
+                        item.base.esProvincia &&
+                        _movimientoDestinoTexto(
+                          item.resumen,
+                          item.base.esProvincia,
+                        ).contains('\n'),
+                  );
+                  return needsExtra ? 108 : null;
+                },
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

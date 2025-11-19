@@ -22,6 +22,8 @@ class FabricacionDetalleFabricado {
     required this.idproducto,
     required this.cantidad,
     this.productoNombre,
+    this.costoUnitario = 0,
+    this.costoTotal = 0,
   });
 
   final String? id;
@@ -29,6 +31,28 @@ class FabricacionDetalleFabricado {
   final String idproducto;
   final double cantidad;
   final String? productoNombre;
+  final double costoUnitario;
+  final double costoTotal;
+
+  FabricacionDetalleFabricado copyWith({
+    String? id,
+    String? idfabricacion,
+    String? idproducto,
+    double? cantidad,
+    String? productoNombre,
+    double? costoUnitario,
+    double? costoTotal,
+  }) {
+    return FabricacionDetalleFabricado(
+      id: id ?? this.id,
+      idfabricacion: idfabricacion ?? this.idfabricacion,
+      idproducto: idproducto ?? this.idproducto,
+      cantidad: cantidad ?? this.cantidad,
+      productoNombre: productoNombre ?? this.productoNombre,
+      costoUnitario: costoUnitario ?? this.costoUnitario,
+      costoTotal: costoTotal ?? this.costoTotal,
+    );
+  }
 
   factory FabricacionDetalleFabricado.fromJson(Map<String, dynamic> json) {
     final Map<String, dynamic>? productoJson =
@@ -50,6 +74,8 @@ class FabricacionDetalleFabricado {
       idproducto: json['idproducto'] as String,
       cantidad: _toDouble(json['cantidad']),
       productoNombre: productoNombre,
+      costoUnitario: _toDouble(json['costo_unitario']),
+      costoTotal: _toDouble(json['costo_total']),
     );
   }
 
@@ -59,7 +85,7 @@ class FabricacionDetalleFabricado {
     final List<dynamic> rows = await _supabase
         .from('fabricacion_det_fabricado')
         .select(
-          'id,idfabricacion,idproducto,cantidad,producto_nombre:productos(nombre)',
+          'id,idfabricacion,idproducto,cantidad,costo_unitario,costo_total,producto_nombre:productos(nombre)',
         )
         .eq('idfabricacion', fabricacionId)
         .order('registrado_at');
@@ -87,6 +113,8 @@ class FabricacionDetalleFabricado {
             'idfabricacion': fabricacionId,
             'idproducto': detalle.idproducto,
             'cantidad': detalle.cantidad,
+            'costo_unitario': detalle.costoUnitario,
+            'costo_total': detalle.costoTotal,
           },
         )
         .toList(growable: false);

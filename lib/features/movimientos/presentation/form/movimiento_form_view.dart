@@ -643,6 +643,19 @@ class _MovimientoFormViewState extends State<MovimientoFormView> {
     return false;
   }
 
+  String? get _completarButtonMessage {
+    if (_isLoadingPendientes || _isCompletingPedido) {
+      return 'Calculando pendientes...';
+    }
+    if (!_hasProductosPedido) {
+      return 'No hay productos del pedido para completar.';
+    }
+    if (!_shouldShowCompletarPedidoButton) {
+      return 'No hay pendientes por completar.';
+    }
+    return null;
+  }
+
   void _removeDetalle(int index) {
     setState(() {
       _detalles.removeAt(index);
@@ -1086,109 +1099,123 @@ class _MovimientoFormViewState extends State<MovimientoFormView> {
             if (_isLoadingProductos)
               const Center(child: CircularProgressIndicator())
             else
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Row(
+              Builder(
+                builder: (BuildContext context) {
+                  final String? completarMensaje = _completarButtonMessage;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      Expanded(
-                        child: Text(
-                          'Movdet',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                      ),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 4,
-                        alignment: WrapAlignment.end,
+                      Row(
                         children: <Widget>[
-                          OutlinedButton.icon(
-                            onPressed: () => _openDetalleForm(),
-                            icon: const Icon(Icons.add),
-                            label: const Text('Add'),
-                          ),
-                          ElevatedButton.icon(
-                            onPressed: _isCompletingPedido ||
-                                    !_shouldShowCompletarPedidoButton
-                                ? null
-                                : _completarPedidoAutomaticamente,
-                            icon: _isCompletingPedido
-                                ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Icon(Icons.playlist_add_check),
-                            label: Text(
-                              _isCompletingPedido
-                                  ? 'Completando...'
-                                  : _isLoadingPendientes
-                                      ? 'Calculando...'
-                                      : _hasProductosPedido
-                                          ? (_shouldShowCompletarPedidoButton
-                                              ? 'Completar'
-                                              : 'Sin pendientes')
-                                          : 'Sin productos',
+                          Expanded(
+                            child: Text(
+                              'Movdet',
+                              style: Theme.of(context).textTheme.titleMedium,
                             ),
+                          ),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 4,
+                            alignment: WrapAlignment.end,
+                            children: <Widget>[
+                              OutlinedButton.icon(
+                                onPressed: () => _openDetalleForm(),
+                                icon: const Icon(Icons.add),
+                                label: const Text('Agregar'),
+                              ),
+                              ElevatedButton.icon(
+                                onPressed: _isCompletingPedido ||
+                                        !_shouldShowCompletarPedidoButton
+                                    ? null
+                                    : _completarPedidoAutomaticamente,
+                                icon: _isCompletingPedido
+                                    ? const SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Icon(Icons.playlist_add_check),
+                                label: Text(
+                                  _isCompletingPedido
+                                      ? 'Completando...'
+                                      : 'Completar',
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                    ],
-                  ),
-                  if (_isLoadingPendientes)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 8),
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      ),
-                    ),
-                  const SizedBox(height: 12),
-                  if (_detalles.isEmpty)
-                    const Text('Sin productos agregados.')
-                  else
-                    ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: _detalles.length,
-                      itemBuilder: (BuildContext context, int index) {
-                        final DetalleMovimiento detalle = _detalles[index];
-                        return Card(
-                          margin: const EdgeInsets.symmetric(vertical: 6),
-                          child: ListTile(
-                            title: Text(_productoNombre(detalle)),
-                            subtitle: Text(
-                              'Cantidad: ${detalle.cantidad.toStringAsFixed(2)}',
-                            ),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: <Widget>[
-                                IconButton(
-                                  tooltip: 'Editar',
-                                  onPressed: () => _openDetalleForm(
-                                    detalle: detalle,
-                                    index: index,
-                                  ),
-                                  icon: const Icon(Icons.edit),
-                                ),
-                                IconButton(
-                                  tooltip: 'Eliminar',
-                                  onPressed: () => _removeDetalle(index),
-                                  icon: const Icon(Icons.delete_outline),
-                                ),
-                              ],
+                      if (_isLoadingPendientes)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 8),
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
                             ),
                           ),
-                        );
-                      },
-                    ),
-                ],
+                        ),
+                      if (completarMensaje != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: Text(
+                              completarMensaje,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(
+                                      color: Theme.of(context).hintColor),
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 12),
+                      if (_detalles.isEmpty)
+                        const Text('Sin productos agregados.')
+                      else
+                        ListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: _detalles.length,
+                          itemBuilder: (BuildContext context, int index) {
+                            final DetalleMovimiento detalle = _detalles[index];
+                            return Card(
+                              margin: const EdgeInsets.symmetric(vertical: 6),
+                              child: ListTile(
+                                title: Text(_productoNombre(detalle)),
+                                subtitle: Text(
+                                  'Cantidad: ${detalle.cantidad.toStringAsFixed(2)}',
+                                ),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: <Widget>[
+                                    IconButton(
+                                      tooltip: 'Editar',
+                                      onPressed: () => _openDetalleForm(
+                                        detalle: detalle,
+                                        index: index,
+                                      ),
+                                      icon: const Icon(Icons.edit),
+                                    ),
+                                    IconButton(
+                                      tooltip: 'Eliminar',
+                                      onPressed: () => _removeDetalle(index),
+                                      icon: const Icon(Icons.delete_outline),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                    ],
+                  );
+                },
               ),
             const SizedBox(height: 16),
           ],

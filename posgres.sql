@@ -855,12 +855,18 @@ create table if not exists fabricacion_det_fabricado (
   idfabricacion uuid not null references fabricaciones(id) on delete cascade,
   idproducto    uuid not null references productos(id),
   cantidad numeric(12,4) not null check (cantidad > 0),
+  costo_unitario numeric(12,6) not null default 0,
+  costo_total   numeric(14,4) not null default 0,
   registrado_at timestamptz default now(),
   editado_at     timestamptz,
   registrado_por uuid references auth.users(id),
   editado_por    uuid references auth.users(id),
   unique (idfabricacion, idproducto)
 );
+
+alter table public.fabricacion_det_fabricado
+  add column if not exists costo_unitario numeric(12,6) not null default 0,
+  add column if not exists costo_total numeric(14,4) not null default 0;
 
 create table if not exists fabricaciones_gastos (
   id uuid primary key default gen_random_uuid(),
@@ -942,16 +948,29 @@ alter table public.gastos_operativos
 -------------------------------------------------
 
 create or replace view public.v_productos_costo_promedio as
+with movimientos as (
+  select
+    cd.idproducto,
+    cd.cantidad,
+    cd.costo_total
+  from public.compras_detalle cd
+  union all
+  select
+    fdf.idproducto,
+    fdf.cantidad,
+    coalesce(fdf.costo_total, fdf.costo_unitario * fdf.cantidad) as costo_total
+  from public.fabricacion_det_fabricado fdf
+)
 select
-  cd.idproducto,
-  sum(cd.cantidad)::numeric(18,6) as cantidad_total,
-  sum(cd.costo_total)::numeric(18,6) as valor_total,
+  m.idproducto,
+  sum(m.cantidad)::numeric(18,6) as cantidad_total,
+  sum(m.costo_total)::numeric(18,6) as valor_total,
   case
-    when sum(cd.cantidad) = 0 then 0
-    else (sum(cd.costo_total) / nullif(sum(cd.cantidad), 0))::numeric(18,6)
+    when sum(m.cantidad) = 0 then 0
+    else (sum(m.costo_total) / nullif(sum(m.cantidad), 0))::numeric(18,6)
   end as costo_promedio
-from public.compras_detalle cd
-group by cd.idproducto;
+from movimientos m
+group by m.idproducto;
 
 -------------------------------------------------
 -- FUNCIONES · MÓDULO 2 (Costos promedio)

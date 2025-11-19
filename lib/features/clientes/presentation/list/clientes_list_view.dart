@@ -5,6 +5,7 @@ import 'package:demo_pedidos/ui/table/table_section.dart';
 import 'package:flutter/material.dart';
 import 'package:demo_pedidos/shared/app_sections.dart';
 
+import '../detail/clientes_detail_view.dart';
 import '../form/clientes_form_view.dart';
 
 class ClientesListView extends StatefulWidget {
@@ -153,6 +154,7 @@ class _ClientesListViewState extends State<ClientesListView> {
                 ],
               ),
             ],
+            onRowTap: (Cliente cliente) => _openClienteDetalle(cliente),
           );
         },
       ),
@@ -171,6 +173,18 @@ class _ClientesListViewState extends State<ClientesListView> {
       ),
     );
     if (result != null) {
+      _reload();
+    }
+  }
+
+  Future<void> _openClienteDetalle(Cliente cliente) async {
+    final bool? changed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute<bool>(
+        builder: (_) => ClientesDetailView(clienteId: cliente.id),
+      ),
+    );
+    if (changed == true) {
       _reload();
     }
   }

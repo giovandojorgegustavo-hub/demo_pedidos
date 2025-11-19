@@ -1,13 +1,11 @@
+import 'package:demo_pedidos/features/pedidos/presentation/actions/pedidos_actions.dart';
 import 'package:demo_pedidos/models/pedido.dart';
-import 'package:demo_pedidos/ui/page_scaffold.dart';
+import 'package:demo_pedidos/shared/app_sections.dart';
+import 'package:demo_pedidos/templates/list_view_template.dart';
 import 'package:demo_pedidos/ui/standard_data_table.dart';
 import 'package:demo_pedidos/ui/table/table_section.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:demo_pedidos/shared/app_sections.dart';
-
-import '../detail/pedidos_detalle_view.dart';
-import '../form/pedidos_form_view.dart';
 
 class PedidosListView extends StatefulWidget {
   const PedidosListView({super.key});
@@ -17,124 +15,113 @@ class PedidosListView extends StatefulWidget {
 }
 
 class _PedidosListViewState extends State<PedidosListView> {
-  late Future<List<Pedido>> _future;
-  int _countPorCobrar = 0;
-  int _countPorEntregar = 0;
   RealtimeChannel? _realtimeChannel;
-  bool get _hasSelection => _selectedPedidoIds.isNotEmpty;
-  final Set<String> _selectedPedidoIds = <String>{};
-
-  @override
-  void initState() {
-    super.initState();
-    _future = _loadPedidos();
-    _setupRealtime();
-  }
 
   @override
   void dispose() {
-    _realtimeChannel?.unsubscribe();
+    _disposeRealtime();
     super.dispose();
   }
 
-  Future<void> _reload() async {
-    setState(() {
-      _future = _loadPedidos();
-    });
-    try {
-      await _future;
-    } catch (_) {
-      // El error se mostrará en el FutureBuilder.
-    }
-  }
-
-  void _togglePedidoSelection(Pedido pedido, bool selected) {
-    setState(() {
-      if (selected) {
-        _selectedPedidoIds.add(pedido.id);
-      } else {
-        _selectedPedidoIds.remove(pedido.id);
-      }
-    });
-  }
-
-  void _clearSelection() {
-    if (_selectedPedidoIds.isEmpty) {
-      return;
-    }
-    setState(() {
-      _selectedPedidoIds.clear();
-    });
-  }
-
-  Future<void> _deleteSelectedPedidos() async {
-    if (_selectedPedidoIds.isEmpty) {
-      return;
-    }
-    final bool? confirmed = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Eliminar pedidos'),
-          content: Text(
-            '¿Deseas eliminar ${_selectedPedidoIds.length} '
-            'pedido${_selectedPedidoIds.length == 1 ? '' : 's'}? '
-            'Esta acción no se puede deshacer.',
+  @override
+  Widget build(BuildContext context) {
+    return ListViewTemplate<Pedido>(
+      config: ListViewTemplateConfig<Pedido>(
+        title: 'Listado de pedidos',
+        currentSection: AppSection.pedidos,
+        loader: Pedido.getPedidos,
+        idSelector: (Pedido pedido) => pedido.id,
+        columns: _pedidoColumns,
+        filters: _pedidoFilters,
+        searchTextBuilder: (Pedido pedido) => '${pedido.clienteNombre ?? ''} '
+            '${pedido.clienteNumero ?? ''} '
+            '${pedido.observacion ?? ''}',
+        searchPlaceholder: 'Buscar cliente o número',
+        minTableWidth: 720,
+        noResultsMessage: 'No hay pedidos con los filtros seleccionados.',
+        onRowTap: _openDetalle,
+        onCreate: _openCreate,
+        onDeleteSelected: _deleteSelected,
+        confirmDeleteBuilder: _confirmDelete,
+        deleteSelectionLabelBuilder: (int count) => 'Eliminar ($count)',
+        deleteErrorMessageBuilder: (Object error) =>
+            'No se pudieron eliminar los pedidos: $error',
+        tabs: <ListViewTemplateTab<Pedido>>[
+          ListViewTemplateTab<Pedido>(
+            labelBuilder: (_) => 'Todos',
+            emptyMessage: 'Sin pedidos',
+            showCreateShortcut: true,
           ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancelar'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Eliminar'),
-            ),
-          ],
-        );
-      },
+          ListViewTemplateTab<Pedido>(
+            labelBuilder: (List<Pedido> items) =>
+                'Por cobrar (${items.where(_needsPago).length})',
+            predicate: _needsPago,
+            emptyMessage: 'Todos los pedidos están al día en pagos.',
+          ),
+          ListViewTemplateTab<Pedido>(
+            labelBuilder: (List<Pedido> items) =>
+                'Por entregar (${items.where(_needsEntrega).length})',
+            predicate: _needsEntrega,
+            emptyMessage: 'Todos los pedidos fueron entregados.',
+          ),
+        ],
+        onInit: _setupRealtime,
+        onDispose: _disposeRealtime,
+      ),
     );
-    if (confirmed != true) {
-      return;
-    }
-    try {
-      for (final String id in _selectedPedidoIds) {
-        await Pedido.deleteById(id);
-      }
-      if (!mounted) {
-        return;
-      }
-      _clearSelection();
-      await _reload();
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No se pudieron eliminar los pedidos: $error')),
-      );
+  }
+
+  Future<void> _openCreate(
+    ListViewTemplateController<Pedido> controller,
+  ) async {
+    final bool created = await PedidosActions.create(context);
+    if (created) {
+      await controller.reload();
     }
   }
 
-  String _formatDateTime(DateTime date) {
-    final String d = date.day.toString().padLeft(2, '0');
-    final String m = date.month.toString().padLeft(2, '0');
-    final String h = date.hour.toString().padLeft(2, '0');
-    final String min = date.minute.toString().padLeft(2, '0');
-    return '$d/$m/${date.year} $h:$min';
+  Future<void> _openDetalle(
+    Pedido pedido,
+    ListViewTemplateController<Pedido> controller,
+  ) async {
+    final bool changed = await PedidosActions.openDetail(context, pedido.id);
+    if (changed) {
+      await controller.reload();
+    }
   }
 
-  bool _needsPago(Pedido pedido) {
-    final String status = (pedido.estadoPago ?? '').toLowerCase();
-    return status.isEmpty || status == 'pendiente' || status == 'parcial';
+  Future<void> _deleteSelected(
+    ListViewTemplateController<Pedido> controller,
+    Set<String> ids,
+  ) async {
+    await PedidosActions.deleteByIds(ids);
   }
 
-  bool _needsEntrega(Pedido pedido) {
-    final String status = (pedido.estadoEntrega ?? '').toLowerCase();
-    return status.isEmpty || status != 'terminado';
+  Future<bool> _confirmDelete(BuildContext context, int count) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (BuildContext context) => AlertDialog(
+            title: const Text('Eliminar pedidos'),
+            content: Text(
+              '¿Deseas eliminar $count pedido'
+              '${count == 1 ? '' : 's'}? Esta acción no se puede deshacer.',
+            ),
+            actions: <Widget>[
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancelar'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Eliminar'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
   }
 
-  void _setupRealtime() {
+  void _setupRealtime(ListViewTemplateController<Pedido> controller) {
     final SupabaseClient client = Supabase.instance.client;
     final RealtimeChannel channel = client.channel('public:pedidos_realtime');
 
@@ -147,7 +134,7 @@ class _PedidosListViewState extends State<PedidosListView> {
           if (!mounted) {
             return;
           }
-          _reload();
+          controller.reload();
         },
       );
     }
@@ -167,191 +154,36 @@ class _PedidosListViewState extends State<PedidosListView> {
     _realtimeChannel = channel;
   }
 
-  Future<List<Pedido>> _loadPedidos() async {
-    final List<Pedido> items = await Pedido.getPedidos();
-    if (!mounted) {
-      return items;
+  void _disposeRealtime() {
+    _realtimeChannel?.unsubscribe();
+    _realtimeChannel = null;
+  }
+
+  static bool _needsPago(Pedido pedido) {
+    final String status = (pedido.estadoPago ?? '').toLowerCase();
+    return status.isEmpty || status == 'pendiente' || status == 'parcial';
+  }
+
+  static bool _needsEntrega(Pedido pedido) {
+    final String status = (pedido.estadoEntrega ?? '').toLowerCase();
+    return status.isEmpty || status != 'terminado';
+  }
+
+  static String _formatDateTime(DateTime date) {
+    final String d = date.day.toString().padLeft(2, '0');
+    final String m = date.month.toString().padLeft(2, '0');
+    final String h = date.hour.toString().padLeft(2, '0');
+    final String min = date.minute.toString().padLeft(2, '0');
+    return '$d/$m/${date.year} $h:$min';
+  }
+
+  static String _formatState(String? value) {
+    final String normalized = (value ?? '').trim();
+    if (normalized.isEmpty) {
+      return 'Sin datos';
     }
-    final int porCobrar = items.where(_needsPago).length;
-    final int porEntregar = items.where(_needsEntrega).length;
-    setState(() {
-      _countPorCobrar = porCobrar;
-      _countPorEntregar = porEntregar;
-      _selectedPedidoIds
-          .removeWhere((String id) => items.every((Pedido p) => p.id != id));
-    });
-    return items;
-  }
-
-  Widget _buildPedidosList(
-    List<Pedido> items,
-    String emptyMessage, {
-    bool showCreateShortcut = false,
-  }) {
-    return TableSection<Pedido>(
-      items: items,
-      columns: _pedidoColumns,
-      onRowTap: _openDetalle,
-      onRefresh: _reload,
-      filters: _pedidoFilters,
-      searchTextBuilder: (Pedido pedido) =>
-          '${pedido.clienteNombre ?? ''} ${pedido.clienteNumero ?? ''} ${pedido.observacion ?? ''}',
-      searchPlaceholder: 'Buscar cliente o número',
-      emptyMessage: emptyMessage,
-      noResultsMessage: 'No hay pedidos con los filtros seleccionados.',
-      minTableWidth: 720,
-      dense: true,
-      selectionConfig: TableSelectionConfig<Pedido>(
-        isItemSelected: (Pedido pedido) =>
-            _selectedPedidoIds.contains(pedido.id),
-        onSelectionChange: (Pedido pedido, bool selected) {
-          _togglePedidoSelection(pedido, selected);
-        },
-        selectionMode: _hasSelection,
-        showCheckboxColumn: true,
-        onRequestSelectionStart: (Pedido pedido) {
-          if (_selectedPedidoIds.contains(pedido.id)) {
-            return;
-          }
-          setState(() {
-            _selectedPedidoIds.add(pedido.id);
-          });
-        },
-      ),
-      emptyBuilder: showCreateShortcut
-          ? (BuildContext context) => Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Text(emptyMessage),
-                    const SizedBox(height: 12),
-                    ElevatedButton(
-                      onPressed: _openCreate,
-                      child: const Text('Crear primer pedido'),
-                    ),
-                  ],
-                ),
-              )
-          : null,
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 3,
-      child: PageScaffold(
-        title: 'Listado de pedidos',
-        currentSection: AppSection.pedidos,
-        actions: <Widget>[
-          IconButton(
-            onPressed: _reload,
-            tooltip: 'Actualizar',
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
-        bottom: TabBar(
-          tabs: <Widget>[
-            const Tab(text: 'Todos'),
-            Tab(text: 'Por cobrar (${_countPorCobrar})'),
-            Tab(text: 'Por entregar (${_countPorEntregar})'),
-          ],
-        ),
-        body: FutureBuilder<List<Pedido>>(
-          future: _future,
-          builder: (BuildContext context, AsyncSnapshot<List<Pedido>> snap) {
-            if (snap.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snap.hasError) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      const Text('No se pudo cargar la lista.'),
-                      const SizedBox(height: 8),
-                      Text(
-                        '${snap.error}',
-                        style: const TextStyle(color: Colors.redAccent),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 12),
-                      ElevatedButton(
-                        onPressed: _reload,
-                        child: const Text('Reintentar'),
-                      ),
-                    ],
-                  ),
-        ),
-      );
-            }
-
-            final List<Pedido> items = snap.data ?? <Pedido>[];
-            final List<Pedido> porCobrar =
-                items.where(_needsPago).toList(growable: false);
-            final List<Pedido> porEntregar =
-                items.where(_needsEntrega).toList(growable: false);
-
-            return TabBarView(
-              children: <Widget>[
-                _buildPedidosList(
-                  items,
-                  'Sin pedidos',
-                  showCreateShortcut: true,
-                ),
-                _buildPedidosList(
-                  porCobrar,
-                  'Todos los pedidos están al día en pagos.',
-                ),
-                _buildPedidosList(
-                  porEntregar,
-                  'Todos los pedidos fueron entregados.',
-                ),
-              ],
-            );
-          },
-        ),
-        floatingActionButton: _hasSelection
-            ? FloatingActionButton.extended(
-                onPressed: _deleteSelectedPedidos,
-                icon: const Icon(Icons.delete_outline),
-                label: Text('Eliminar (${_selectedPedidoIds.length})'),
-              )
-            : FloatingActionButton(
-                onPressed: _openCreate,
-                child: const Icon(Icons.add),
-              ),
-      ),
-    );
-  }
-
-  void _openCreate() {
-    Navigator.push(
-      context,
-      MaterialPageRoute<void>(
-        builder: (_) => const PedidosFormView(),
-      ),
-    ).then((Object? result) {
-      if (result == true) {
-        _reload();
-      }
-    });
-  }
-
-  void _openDetalle(Pedido pedido) {
-    Navigator.push(
-      context,
-      MaterialPageRoute<void>(
-        builder: (_) => PedidosDetalleView(pedidoId: pedido.id),
-      ),
-    ).then((Object? result) {
-      if (result == true) {
-        _reload();
-      }
-    });
+    final String lower = normalized.toLowerCase();
+    return lower[0].toUpperCase() + lower.substring(1);
   }
 
   List<TableColumnConfig<Pedido>> get _pedidoColumns {
@@ -359,8 +191,9 @@ class _PedidosListViewState extends State<PedidosListView> {
       TableColumnConfig<Pedido>(
         label: 'Fecha',
         sortAccessor: (Pedido pedido) => pedido.fechapedido,
-        cellBuilder: (Pedido pedido) =>
-            Text(_formatDateTime(pedido.fechapedido)),
+        cellBuilder: (Pedido pedido) => Text(_formatDateTime(
+          pedido.fechapedido,
+        )),
       ),
       TableColumnConfig<Pedido>(
         label: 'Cliente',
@@ -436,14 +269,5 @@ class _PedidosListViewState extends State<PedidosListView> {
         ],
       ),
     ];
-  }
-
-  String _formatState(String? value) {
-    final String normalized = (value ?? '').trim();
-    if (normalized.isEmpty) {
-      return 'Sin datos';
-    }
-    final String lower = normalized.toLowerCase();
-    return lower[0].toUpperCase() + lower.substring(1);
   }
 }
